@@ -1,0 +1,13 @@
+{
+  "name": "homiva-admin",
+  "version": "1.0.0",
+  "description": "Privileged admin actions for Homiva (role approvals, listing approvals).",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "node-appwrite": "^27.0.0"
+  }
+}

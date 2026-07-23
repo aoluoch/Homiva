@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Homiva Design System
+  - Primary Green: trust, growth, nature, safety, home ownership
+  - Accent Orange: warmth, energy, friendliness, service
+  - Background: clean white surfaces for a premium property experience
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 160 14% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 160 14% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 14% 12%;
+
+    /* Homiva primary green */
+    --primary: 142 72% 29%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Soft green surface */
+    --secondary: 140 40% 96%;
+    --secondary-foreground: 142 60% 20%;
+
+    /* Homiva accent orange */
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 150 16% 96%;
+    --muted-foreground: 155 8% 42%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 150 12% 90%;
+    --input: 150 12% 90%;
+    --ring: 142 72% 29%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 160 24% 7%;
+    --foreground: 0 0% 98%;
+
+    --card: 160 22% 10%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 160 22% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 142 65% 45%;
+    --primary-foreground: 160 30% 6%;
+
+    --secondary: 160 18% 16%;
+    --secondary-foreground: 0 0% 98%;
+
+    --accent: 24 95% 55%;
+    --accent-foreground: 160 30% 6%;
+
+    --muted: 160 16% 16%;
+    --muted-foreground: 150 10% 65%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 160 14% 20%;
+    --input: 160 14% 20%;
+    --ring: 142 65% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1, h2, h3, h4 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .homiva-gradient {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(142 60% 22%) 100%
+    );
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}

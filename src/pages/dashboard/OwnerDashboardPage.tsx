@@ -1,0 +1,154 @@
+import { Link } from "react-router-dom";
+import {
+  Building2,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/context/AuthContext";
+import { useMyProperties } from "@/hooks/useProperties";
+import { useDeleteProperty } from "@/hooks/usePropertyMutations";
+import { formatKES } from "@/lib/utils";
+import { propertyCover, PROPERTY_PLACEHOLDER } from "@/components/property/propertyImage";
+import type { PropertyStatus } from "@/types/models";
+
+const statusVariant: Record<
+  PropertyStatus,
+  "success" | "warning" | "destructive" | "secondary"
+> = {
+  approved: "success",
+  pending: "warning",
+  rejected: "destructive",
+  draft: "secondary",
+};
+
+export default function OwnerDashboardPage() {
+  const { user } = useAuth();
+  const { data: properties, isLoading } = useMyProperties(user?.$id);
+  const del = useDeleteProperty();
+
+  const handleDelete = (id: string, title: string) => {
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    del.mutate(id, {
+      onSuccess: () => toast.success("Listing deleted."),
+      onError: (err) => toast.error((err as Error).message),
+    });
+  };
+
+  const stats = {
+    total: properties?.length ?? 0,
+    approved: properties?.filter((p) => p.status === "approved").length ?? 0,
+    pending: properties?.filter((p) => p.status === "pending").length ?? 0,
+  };
+
+  return (
+    <div className="container py-8">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Owner dashboard</h1>
+          <p className="text-muted-foreground">
+            Manage your property listings
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/dashboard/new">
+            <Plus className="h-4 w-4" /> New listing
+          </Link>
+        </Button>
+      </div>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Total listings" value={stats.total} />
+        <StatCard label="Approved (live)" value={stats.approved} />
+        <StatCard label="Pending review" value={stats.pending} />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : properties && properties.length > 0 ? (
+        <div className="space-y-3">
+          {properties.map((p) => (
+            <Card key={p.$id}>
+              <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center">
+                <img
+                  src={propertyCover(p, { width: 160, height: 120 })}
+                  alt={p.title}
+                  onError={(e) => (e.currentTarget.src = PROPERTY_PLACEHOLDER)}
+                  className="h-20 w-28 shrink-0 rounded-lg object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate font-semibold">{p.title}</h3>
+                    <Badge variant={statusVariant[p.status]}>{p.status}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {p.town}, {p.county}
+                  </p>
+                  <p className="text-sm font-medium text-primary">
+                    {formatKES(p.price)}
+                  </p>
+                  {p.status === "rejected" && p.rejectionReason && (
+                    <p className="mt-1 text-xs text-destructive">
+                      Rejected: {p.rejectionReason}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/properties/${p.$id}`}>View</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/dashboard/edit/${p.$id}`}>
+                      <Pencil className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(p.$id, p.title)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={Building2}
+          title="No listings yet"
+          description="Create your first property listing. It will go live once approved by the Homiva team."
+          action={
+            <Button asChild>
+              <Link to="/dashboard/new">
+                <Plus className="h-4 w-4" /> Create listing
+              </Link>
+            </Button>
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <Card>
+      <CardContent className="py-6">
+        <p className="text-3xl font-bold">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
+  );
+}

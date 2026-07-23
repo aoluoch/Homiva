@@ -1,0 +1,13 @@
+{
+  "name": "homiva-payments",
+  "version": "1.0.0",
+  "description": "Server-side Paystack verification + fulfillment for Homiva (viewing fees, services, bookings, orders, subscriptions).",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "node-appwrite": "^27.0.0"
+  }
+}
