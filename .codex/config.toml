@@ -1,0 +1,11 @@
+[mcp_servers.appwrite-api]
+enabled = true
+command = "uvx"
+args = ["mcp-server-appwrite"]
+env_vars = ["APPWRITE_API_KEY"]
+startup_timeout_sec = 20.0
+tool_timeout_sec = 60.0
+
+[mcp_servers.appwrite-api.env]
+APPWRITE_PROJECT_ID = "6a56af86002ae69ae1fc"
+APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1"

@@ -43,6 +43,7 @@ import { useViewingAccess, usePayViewingFee } from "@/hooks/useViewing";
 import { useRecordView } from "@/hooks/useRecentlyViewed";
 import { useFavorites, useToggleFavorite } from "@/hooks/useFavorites";
 import { useCreateInquiry } from "@/hooks/useInquiries";
+import { PropertyMapPreview } from "@/components/location/PropertyLocationPicker";
 import { propertyCover, PROPERTY_PLACEHOLDER } from "@/components/property/propertyImage";
 import { BookingWidget } from "@/components/booking/BookingWidget";
 import { ReviewSection } from "@/components/reviews/ReviewSection";
@@ -330,6 +331,24 @@ function UnlockedPanel({
           </p>
         </div>
       )}
+      {property.latitude && property.longitude ? (
+        <PropertyMapPreview
+          latitude={property.latitude}
+          longitude={property.longitude}
+          label={property.address ?? `${property.town}, ${property.county}`}
+        />
+      ) : null}
+      {(property.latitude && property.longitude) || property.address ? (
+        <Button asChild variant="outline" className="w-full">
+          <a
+            href={mapHref(property)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <MapPin className="h-4 w-4" /> Open map
+          </a>
+        </Button>
+      ) : null}
       {property.contactPhone && (
         <a
           href={`tel:${property.contactPhone}`}
@@ -349,6 +368,20 @@ function UnlockedPanel({
       <InquiryDialog property={property} />
     </div>
   );
+}
+
+function mapHref(property: import("@/types/models").Property) {
+  if (property.latitude && property.longitude) {
+    return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+      property.latitude,
+    )}&mlon=${encodeURIComponent(property.longitude)}#map=16/${
+      property.latitude
+    }/${property.longitude}`;
+  }
+  const query = [property.address, property.town, property.county, "Kenya"]
+    .filter(Boolean)
+    .join(", ");
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }
 
 function InquiryDialog({

@@ -16,7 +16,6 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { useState } from "react";
-import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import {
   Avatar,
@@ -70,10 +69,16 @@ export function Navbar() {
     : undefined;
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-40 w-full border-b bg-background/[0.92] shadow-[0_1px_0_hsl(var(--border))] backdrop-blur supports-[backdrop-filter]:bg-background/[0.86]">
       <div className="container flex h-16 items-center justify-between gap-4">
         <div className="flex items-center gap-8">
-          <Logo />
+          <Link
+            to="/"
+            className="text-2xl font-black tracking-tight text-foreground"
+            aria-label="Homiva home"
+          >
+            Homiva
+          </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {navLinks.map((link) => (
               <NavLink
@@ -82,7 +87,7 @@ export function Navbar() {
                 className={({ isActive }) =>
                   cn(
                     "rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                    isActive && "text-foreground",
+                    isActive && "bg-secondary text-secondary-foreground",
                   )
                 }
               >
@@ -201,7 +206,7 @@ export function Navbar() {
               <Button asChild variant="ghost">
                 <Link to="/login">Log in</Link>
               </Button>
-              <Button asChild>
+              <Button asChild variant="accent">
                 <Link to="/register">Get started</Link>
               </Button>
             </div>
@@ -220,7 +225,7 @@ export function Navbar() {
       </div>
 
       {mobileOpen && (
-        <div className="border-t md:hidden">
+        <div className="border-t bg-background/95 md:hidden">
           <nav className="container flex flex-col gap-1 py-3">
             {navLinks.map((link) => (
               <Link
@@ -247,7 +252,7 @@ export function Navbar() {
                     Log in
                   </Link>
                 </Button>
-                <Button asChild>
+                <Button asChild variant="accent">
                   <Link to="/register" onClick={() => setMobileOpen(false)}>
                     Get started
                   </Link>

@@ -4,45 +4,45 @@
 
 /*
   Homiva Design System
-  - Primary Green: trust, growth, nature, safety, home ownership
-  - Accent Orange: warmth, energy, friendliness, service
-  - Background: clean white surfaces for a premium property experience
+  - Primary teal: trust, clarity, home operations
+  - Accent coral: warmth, service, marketplace energy
+  - Ink neutrals: calm product surfaces
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 160 14% 12%;
+    --background: 42 33% 98%;
+    --foreground: 176 23% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 160 14% 12%;
+    --card-foreground: 176 23% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 160 14% 12%;
+    --popover-foreground: 176 23% 11%;
 
-    /* Homiva primary green */
-    --primary: 142 72% 29%;
+    /* Homiva primary teal */
+    --primary: 174 71% 24%;
     --primary-foreground: 0 0% 100%;
 
-    /* Soft green surface */
-    --secondary: 140 40% 96%;
-    --secondary-foreground: 142 60% 20%;
+    /* Soft utility surface */
+    --secondary: 196 34% 94%;
+    --secondary-foreground: 177 31% 18%;
 
-    /* Homiva accent orange */
-    --accent: 24 95% 53%;
+    /* Homiva accent coral */
+    --accent: 10 83% 58%;
     --accent-foreground: 0 0% 100%;
 
-    --muted: 150 16% 96%;
-    --muted-foreground: 155 8% 42%;
+    --muted: 36 24% 95%;
+    --muted-foreground: 176 8% 42%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 150 12% 90%;
-    --input: 150 12% 90%;
-    --ring: 142 72% 29%;
+    --border: 180 12% 86%;
+    --input: 180 12% 86%;
+    --ring: 174 71% 24%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
   }
 
   .dark {
@@ -55,13 +55,13 @@
     --popover: 160 22% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 142 65% 45%;
+    --primary: 174 62% 46%;
     --primary-foreground: 160 30% 6%;
 
     --secondary: 160 18% 16%;
     --secondary-foreground: 0 0% 98%;
 
-    --accent: 24 95% 55%;
+    --accent: 10 83% 61%;
     --accent-foreground: 160 30% 6%;
 
     --muted: 160 16% 16%;
@@ -83,9 +83,19 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image:
+      linear-gradient(90deg, hsl(var(--border) / 0.22) 1px, transparent 1px),
+      linear-gradient(180deg, hsl(var(--border) / 0.18) 1px, transparent 1px);
+    background-size: 48px 48px;
   }
   h1, h2, h3, h4 {
     @apply font-semibold tracking-tight;
+  }
+  .maplibregl-popup-content {
+    @apply bg-transparent p-0 shadow-none;
+  }
+  .maplibregl-popup-tip {
+    @apply hidden;
   }
 }
 
@@ -94,10 +104,36 @@
     background-image: linear-gradient(
       135deg,
       hsl(var(--primary)) 0%,
-      hsl(142 60% 22%) 100%
+      hsl(197 43% 20%) 100%
     );
   }
   .text-balance {
     text-wrap: balance;
+  }
+  .home-hero {
+    background:
+      radial-gradient(circle at 88% 10%, hsl(var(--accent) / 0.18), transparent 28rem),
+      linear-gradient(135deg, hsl(42 33% 98%) 0%, hsl(188 33% 94%) 100%);
+  }
+  .home-market-board,
+  .auth-panel,
+  .auth-story-panel {
+    @apply rounded-md border bg-card/95 shadow-sm;
+  }
+  .home-market-board {
+    box-shadow: 12px 12px 0 hsl(var(--primary) / 0.12);
+  }
+  .auth-shell {
+    background:
+      radial-gradient(circle at 12% 15%, hsl(var(--accent) / 0.14), transparent 24rem),
+      radial-gradient(circle at 88% 76%, hsl(var(--primary) / 0.13), transparent 26rem),
+      hsl(var(--background));
+  }
+  .auth-panel {
+    @apply p-6 md:p-8;
+  }
+  .auth-story-panel {
+    @apply p-8;
+    box-shadow: -12px 12px 0 hsl(var(--accent) / 0.12);
   }
 }

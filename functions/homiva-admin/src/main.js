@@ -1,4 +1,4 @@
-import { Client, TablesDB, Teams, Query } from "node-appwrite";
+import { Client, TablesDB, Teams, Query, ID, Permission, Role } from "node-appwrite";
 
 /**
  * Homiva admin function.
@@ -16,8 +16,10 @@ const T = {
   profiles: "profiles",
   roleApplications: "role_applications",
   properties: "properties",
+  serviceProviders: "service_providers",
   storefronts: "storefronts",
   products: "products",
+  auditLogs: "audit_logs",
 };
 
 export default async ({ req, res, log, error }) => {
@@ -64,7 +66,35 @@ export default async ({ req, res, log, error }) => {
     return fail("Invalid request body.");
   }
 
-  const { action, applicationId, propertyId, storefrontId, productId, note } = body;
+  const {
+    action,
+    applicationId,
+    propertyId,
+    providerId,
+    storefrontId,
+    productId,
+    note,
+  } = body;
+
+  const logAction = async (targetType, targetId, summary) => {
+    try {
+      await tablesDB.createRow({
+        databaseId: DB,
+        tableId: T.auditLogs,
+        rowId: ID.unique(),
+        data: {
+          actorId: callerId,
+          action,
+          targetType,
+          targetId: targetId || "",
+          summary,
+        },
+        permissions: [Permission.read(Role.team("admins"))],
+      });
+    } catch (e) {
+      log(`Audit log note: ${e.message}`);
+    }
+  };
 
   const updateProfileRoles = async (userId, roleTeam, add) => {
     try {
@@ -114,6 +144,7 @@ export default async ({ req, res, log, error }) => {
           data: { status: "approved", reviewedBy: callerId, reviewNote: note || "" },
         });
         await updateProfileRoles(app.userId, app.role, true);
+        await logAction("role_application", applicationId, `Approved ${app.roleLabel || app.role} for ${app.userEmail || app.userId}.`);
         return res.json({ ok: true });
       }
 
@@ -124,6 +155,7 @@ export default async ({ req, res, log, error }) => {
           rowId: applicationId,
           data: { status: "rejected", reviewedBy: callerId, reviewNote: note || "" },
         });
+        await logAction("role_application", applicationId, "Rejected role application.");
         return res.json({ ok: true });
       }
 
@@ -158,6 +190,7 @@ export default async ({ req, res, log, error }) => {
           data: { status: "suspended", reviewedBy: callerId, reviewNote: note || "" },
         });
         await updateProfileRoles(app.userId, app.role, false);
+        await logAction("role_application", applicationId, `Suspended ${app.roleLabel || app.role} for ${app.userEmail || app.userId}.`);
         return res.json({ ok: true });
       }
 
@@ -176,6 +209,7 @@ export default async ({ req, res, log, error }) => {
           data: { status: "approved", rejectionReason: "" },
           permissions: [...perms],
         });
+        await logAction("property", propertyId, `Approved property "${prop.title || propertyId}".`);
         return res.json({ ok: true });
       }
 
@@ -195,6 +229,39 @@ export default async ({ req, res, log, error }) => {
           data: { status: "rejected", rejectionReason: note || "Not specified" },
           permissions: perms,
         });
+        await logAction("property", propertyId, `Rejected property "${prop.title || propertyId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "verifyProvider": {
+        const provider = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.serviceProviders,
+          rowId: providerId,
+        });
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.serviceProviders,
+          rowId: providerId,
+          data: { verified: true },
+        });
+        await logAction("service_provider", providerId, `Verified provider "${provider.businessName || providerId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "unverifyProvider": {
+        const provider = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.serviceProviders,
+          rowId: providerId,
+        });
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.serviceProviders,
+          rowId: providerId,
+          data: { verified: false },
+        });
+        await logAction("service_provider", providerId, `Unverified provider "${provider.businessName || providerId}".`);
         return res.json({ ok: true });
       }
 
@@ -205,6 +272,7 @@ export default async ({ req, res, log, error }) => {
           rowId: storefrontId,
           data: { status: "approved" },
         });
+        await logAction("storefront", storefrontId, "Approved storefront.");
         return res.json({ ok: true });
       }
 
@@ -215,6 +283,7 @@ export default async ({ req, res, log, error }) => {
           rowId: storefrontId,
           data: { status: "rejected" },
         });
+        await logAction("storefront", storefrontId, "Rejected storefront.");
         return res.json({ ok: true });
       }
 
@@ -225,6 +294,7 @@ export default async ({ req, res, log, error }) => {
           rowId: storefrontId,
           data: { verified: true },
         });
+        await logAction("storefront", storefrontId, "Verified storefront.");
         return res.json({ ok: true });
       }
 
@@ -235,6 +305,7 @@ export default async ({ req, res, log, error }) => {
           rowId: productId,
           data: { status: "approved" },
         });
+        await logAction("product", productId, "Approved product.");
         return res.json({ ok: true });
       }
 
@@ -245,6 +316,7 @@ export default async ({ req, res, log, error }) => {
           rowId: productId,
           data: { status: "rejected" },
         });
+        await logAction("product", productId, "Rejected product.");
         return res.json({ ok: true });
       }
 

@@ -134,8 +134,6 @@ export function useSendMessage() {
           Permission.read(Role.user(user.$id)),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          Permission.read(Role.user(receiverId)),
-          Permission.update(Role.user(receiverId)),
         ],
       });
     },

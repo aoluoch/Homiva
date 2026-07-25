@@ -18,6 +18,9 @@ export const appwriteConfig = {
       import.meta.env.VITE_APPWRITE_BUCKET_STORE_ASSETS ?? "store-assets",
     servicePhotos:
       import.meta.env.VITE_APPWRITE_BUCKET_SERVICE_PHOTOS ?? "service-photos",
+    verificationDocuments:
+      import.meta.env.VITE_APPWRITE_BUCKET_VERIFICATION_DOCUMENTS ??
+      "verification-documents",
   },
   functions: {
     admin: import.meta.env.VITE_APPWRITE_FUNCTION_ADMIN ?? "homiva-admin",
@@ -47,6 +50,7 @@ export const TABLES = {
   invoices: "invoices",
   payments: "payments",
   reviews: "reviews",
+  auditLogs: "audit_logs",
   // --- New modules ---
   bookings: "bookings",
   storefronts: "storefronts",
@@ -55,6 +59,10 @@ export const TABLES = {
   subscriptions: "subscriptions",
   messages: "messages",
   notifications: "notifications",
+  // --- Module C (buying) + Module G (disputes) ---
+  disputes: "disputes",
+  mortgageEnquiries: "mortgage_enquiries",
+  viewingRequests: "viewing_requests",
 } as const;
 
 /** Role teams. Membership in a team activates that role for the account. */
@@ -215,6 +223,27 @@ export const PROPERTY_TYPES = [
   "Commercial space",
 ] as const;
 
+export const ROLE_DOCUMENT_REQUIREMENTS: Record<string, string[]> = {
+  [TEAMS.agents]: [
+    "National ID or passport",
+    "Real estate agency license or company authorization",
+    "KRA PIN certificate",
+  ],
+  [TEAMS.landlords]: [
+    "National ID or passport",
+    "Proof of property ownership or property management authorization",
+  ],
+  [TEAMS.airbnbOwners]: [
+    "National ID or passport",
+    "Proof of ownership, lease agreement, or written owner authorization",
+  ],
+  [TEAMS.providers]: [
+    "National ID or passport",
+    "Business registration certificate or business permit",
+    "KRA PIN certificate",
+  ],
+};
+
 /** Size multiplier applied to the price estimate. */
 export const SERVICE_SIZE_TIERS = [
   { key: "small", label: "Small (1 room / bedsitter)", multiplier: 1 },
@@ -307,4 +336,72 @@ export const STOREFRONT_CATEGORIES = [
   "Movers & Logistics",
   "Cleaning Company",
   "General Contractor",
+] as const;
+
+// ---------------------------------------------------------------------------
+// Property Buying (Module C): mortgage enquiry + scheduled viewing requests
+// ---------------------------------------------------------------------------
+
+/** Indicative annual mortgage interest rate (%) used by the calculator. */
+export const MORTGAGE_DEFAULT_RATE = 13.5;
+
+/** Selectable repayment terms (years). */
+export const MORTGAGE_TERMS = [5, 10, 15, 20, 25] as const;
+
+/** Default deposit as a fraction of the property price. */
+export const MORTGAGE_DEFAULT_DEPOSIT_PCT = 0.1;
+
+/**
+ * Standard amortised monthly repayment.
+ * principal = loan amount, annualRate in %, years = term.
+ */
+export function monthlyRepayment(
+  principal: number,
+  annualRatePct: number,
+  years: number,
+): number {
+  if (principal <= 0 || years <= 0) return 0;
+  const r = annualRatePct / 100 / 12;
+  const n = years * 12;
+  if (r === 0) return principal / n;
+  const factor = Math.pow(1 + r, n);
+  return (principal * r * factor) / (factor - 1);
+}
+
+export const VIEWING_REQUEST_STATUSES = [
+  "requested",
+  "confirmed",
+  "declined",
+  "completed",
+] as const;
+
+export const MORTGAGE_ENQUIRY_STATUSES = ["new", "contacted", "closed"] as const;
+
+// ---------------------------------------------------------------------------
+// Disputes (Module G)
+// ---------------------------------------------------------------------------
+
+export const DISPUTE_SUBJECT_TYPES = [
+  { key: "order", label: "Marketplace order" },
+  { key: "service", label: "Home service" },
+  { key: "booking", label: "Airbnb booking" },
+  { key: "property", label: "Property listing" },
+  { key: "other", label: "Other" },
+] as const;
+
+export const DISPUTE_CATEGORIES = [
+  "Item not received",
+  "Not as described",
+  "Damaged / faulty",
+  "Poor service quality",
+  "Refund not processed",
+  "Fraud / scam",
+  "Other",
+] as const;
+
+export const DISPUTE_STATUSES = [
+  "open",
+  "investigating",
+  "resolved",
+  "rejected",
 ] as const;

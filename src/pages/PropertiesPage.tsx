@@ -70,12 +70,22 @@ export default function PropertiesPage() {
       </div>
 
       <Tabs value={type} onValueChange={(v) => update("type", v)}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="sale">Buy</TabsTrigger>
-          <TabsTrigger value="rent">Rent</TabsTrigger>
-          <TabsTrigger value="airbnb">Airbnb</TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+          <TabsList className="mb-4 h-auto min-w-max justify-start gap-1">
+            <TabsTrigger value="all" className="h-9">
+              All
+            </TabsTrigger>
+            <TabsTrigger value="sale" className="h-9">
+              Buy
+            </TabsTrigger>
+            <TabsTrigger value="rent" className="h-9">
+              Rent
+            </TabsTrigger>
+            <TabsTrigger value="airbnb" className="h-9">
+              Airbnb
+            </TabsTrigger>
+          </TabsList>
+        </div>
       </Tabs>
 
       {/* Filters */}

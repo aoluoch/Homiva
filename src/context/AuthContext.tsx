@@ -12,6 +12,11 @@ import { account, ID, Query, tablesDB, teams } from "@/lib/appwrite";
 import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import type { Profile } from "@/types/models";
 
+type EmailOtpRequest = {
+  userId: string;
+  phrase: string;
+};
+
 interface AuthContextValue {
   user: Models.User<Models.Preferences> | null;
   profile: Profile | null;
@@ -19,8 +24,8 @@ interface AuthContextValue {
   loading: boolean;
   isAdmin: boolean;
   hasRole: (team: string) => boolean;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  requestEmailOtp: (email: string) => Promise<EmailOtpRequest>;
+  verifyEmailOtp: (userId: string, secret: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -99,18 +104,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const register = useCallback(
-    async (name: string, email: string, password: string) => {
-      await account.create({ userId: ID.unique(), email, password, name });
-      await account.createEmailPasswordSession({ email, password });
-      await refresh();
-    },
-    [refresh],
-  );
+  const requestEmailOtp = useCallback(async (email: string) => {
+    const token = await account.createEmailToken({
+      userId: ID.unique(),
+      email,
+      phrase: true,
+    });
+    return { userId: token.userId, phrase: token.phrase };
+  }, []);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      await account.createEmailPasswordSession({ email, password });
+  const verifyEmailOtp = useCallback(
+    async (userId: string, secret: string, name?: string) => {
+      await account.createSession({ userId, secret });
+
+      const trimmedName = name?.trim();
+      if (trimmedName) {
+        await account.updateName({ name: trimmedName });
+      }
+
       await refresh();
     },
     [refresh],
@@ -134,12 +145,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       isAdmin: roles.includes(TEAMS.admins),
       hasRole: (team: string) => roles.includes(team),
-      register,
-      login,
+      requestEmailOtp,
+      verifyEmailOtp,
       logout,
       refresh,
     }),
-    [user, profile, roles, loading, register, login, logout, refresh],
+    [user, profile, roles, loading, requestEmailOtp, verifyEmailOtp, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

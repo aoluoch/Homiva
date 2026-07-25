@@ -14,7 +14,7 @@ function logoUrl(fid?: string) {
     width: 120,
     height: 120,
   });
-  return typeof url === "string" ? url : url.toString();
+  return url;
 }
 
 export default function StoresPage() {

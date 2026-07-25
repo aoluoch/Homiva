@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
+import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
-import type { ServiceRequest } from "@/types/models";
+import type { ServiceProvider, ServiceRequest } from "@/types/models";
 
 const DB = appwriteConfig.databaseId;
 
@@ -22,6 +22,12 @@ export interface ServiceRequestInput {
   estimatedMin: number;
   estimatedMax: number;
   emergency: boolean;
+}
+
+export interface ServiceProviderInput {
+  businessName: string;
+  categories: string[];
+  county?: string;
 }
 
 async function uploadServicePhotos(files: File[]): Promise<string[]> {
@@ -66,21 +72,91 @@ export function useCreateServiceRequest() {
           photoIds,
           status: "pending",
         },
-        // Readable by the owner, admins, and providers (to browse open jobs).
         permissions: [
           Permission.read(Role.user(user.$id)),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          Permission.read(Role.team(TEAMS.admins)),
-          Permission.update(Role.team(TEAMS.admins)),
-          Permission.read(Role.team(TEAMS.providers)),
-          Permission.update(Role.team(TEAMS.providers)),
         ],
       }) as unknown as ServiceRequest;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-service-requests"] });
       qc.invalidateQueries({ queryKey: ["open-service-requests"] });
+    },
+  });
+}
+
+/** The current provider's business profile, used for verification and matching. */
+export function useMyServiceProviderProfile() {
+  const { user } = useAuth();
+  return useQuery({
+    enabled: !!user,
+    queryKey: ["my-service-provider", user?.$id],
+    queryFn: async () => {
+      const res = await tablesDB.listRows({
+        databaseId: DB,
+        tableId: TABLES.serviceProviders,
+        queries: [Query.equal("userId", user!.$id), Query.limit(1)],
+      });
+      return (res.rows[0] as unknown as ServiceProvider) ?? null;
+    },
+  });
+}
+
+/** Create or update the current provider's verification profile. */
+export function useSaveServiceProviderProfile() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      existing,
+      values,
+    }: {
+      existing?: ServiceProvider | null;
+      values: ServiceProviderInput;
+    }) => {
+      if (!user) throw new Error("You must be logged in.");
+      if (!values.businessName.trim()) {
+        throw new Error("Business name is required.");
+      }
+      if (values.categories.length === 0) {
+        throw new Error("Choose at least one service category.");
+      }
+
+      const data = {
+        businessName: values.businessName.trim(),
+        categories: values.categories,
+        county: values.county ?? "",
+      };
+
+      if (existing) {
+        return tablesDB.updateRow({
+          databaseId: DB,
+          tableId: TABLES.serviceProviders,
+          rowId: existing.$id,
+          data: { ...data, verified: false },
+        }) as unknown as ServiceProvider;
+      }
+
+      return tablesDB.createRow({
+        databaseId: DB,
+        tableId: TABLES.serviceProviders,
+        rowId: ID.unique(),
+        data: {
+          userId: user.$id,
+          ...data,
+          verified: false,
+          rating: 0,
+        },
+        permissions: [
+          Permission.read(Role.any()),
+          Permission.update(Role.user(user.$id)),
+        ],
+      }) as unknown as ServiceProvider;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-service-provider"] });
+      qc.invalidateQueries({ queryKey: ["admin", "service-providers"] });
     },
   });
 }

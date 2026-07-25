@@ -254,8 +254,10 @@ function StorefrontManager({ store }: { store: Storefront }) {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold">{store.name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="break-words text-2xl font-bold sm:text-3xl">
+              {store.name}
+            </h1>
             <Badge
               variant={
                 store.status === "approved"
@@ -275,18 +277,22 @@ function StorefrontManager({ store }: { store: Storefront }) {
       </div>
 
       <Tabs defaultValue="analytics">
-        <TabsList className="mb-6">
-          <TabsTrigger value="analytics">
-            <BarChart3 className="mr-1 h-4 w-4" /> Analytics
-          </TabsTrigger>
-          <TabsTrigger value="products">
-            <Package className="mr-1 h-4 w-4" /> Products
-          </TabsTrigger>
-          <TabsTrigger value="orders">
-            <ShoppingBag className="mr-1 h-4 w-4" /> Orders
-          </TabsTrigger>
-          <TabsTrigger value="plan">Subscription</TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+          <TabsList className="mb-4 h-auto min-w-max justify-start gap-1">
+            <TabsTrigger value="analytics" className="h-9">
+              <BarChart3 className="mr-1 h-4 w-4" /> Analytics
+            </TabsTrigger>
+            <TabsTrigger value="products" className="h-9">
+              <Package className="mr-1 h-4 w-4" /> Products
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="h-9">
+              <ShoppingBag className="mr-1 h-4 w-4" /> Orders
+            </TabsTrigger>
+            <TabsTrigger value="plan" className="h-9">
+              Subscription
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="analytics">
           <div className="grid gap-4 sm:grid-cols-3">

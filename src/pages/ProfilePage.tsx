@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { BadgeCheck, Clock, ShieldCheck, XCircle } from "lucide-react";
+import {
+  BadgeCheck,
+  Clock,
+  FileText,
+  ShieldCheck,
+  Upload,
+  X,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
@@ -14,7 +22,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/AuthContext";
-import { APPLICABLE_ROLES, TEAMS } from "@/lib/config";
+import {
+  APPLICABLE_ROLES,
+  ROLE_DOCUMENT_REQUIREMENTS,
+  TEAMS,
+} from "@/lib/config";
 import { initials } from "@/lib/utils";
 import {
   useApplyForRole,
@@ -37,14 +49,36 @@ export default function ProfilePage() {
   const { data: applications } = useMyApplications();
   const apply = useApplyForRole();
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [documentFiles, setDocumentFiles] = useState<
+    Record<string, Record<string, File | undefined>>
+  >({});
 
   const handleApply = (role: string, roleLabel: string) => {
+    const requiredDocuments = ROLE_DOCUMENT_REQUIREMENTS[role] ?? [
+      "National ID or passport",
+    ];
+    const uploadedForRole = documentFiles[role] ?? {};
+    const missing = requiredDocuments.filter((label) => !uploadedForRole[label]);
+    if (missing.length > 0) {
+      toast.error(`Please upload: ${missing.join(", ")}.`);
+      return;
+    }
+
     apply.mutate(
-      { role, roleLabel, message: messages[role] },
+      {
+        role,
+        roleLabel,
+        message: messages[role],
+        documents: requiredDocuments.map((label) => ({
+          label,
+          file: uploadedForRole[label]!,
+        })),
+      },
       {
         onSuccess: () => {
           toast.success("Application submitted for review.");
           setMessages((m) => ({ ...m, [role]: "" }));
+          setDocumentFiles((files) => ({ ...files, [role]: {} }));
         },
         onError: (err) => toast.error((err as Error).message),
       },
@@ -98,6 +132,11 @@ export default function ProfilePage() {
           const active = roles.includes(role.team);
           const latest = applications?.find((a) => a.role === role.team);
           const pending = latest?.status === "pending";
+          const requiredDocuments = ROLE_DOCUMENT_REQUIREMENTS[role.team] ?? [];
+          const filesForRole = documentFiles[role.team] ?? {};
+          const missingDocuments = requiredDocuments.some(
+            (label) => !filesForRole[label],
+          );
 
           return (
             <Card key={role.key}>
@@ -134,10 +173,82 @@ export default function ProfilePage() {
                       }
                       rows={2}
                     />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">
+                        Required verification documents
+                      </p>
+                      {requiredDocuments.map((label, index) => {
+                        const file = filesForRole[label];
+                        const inputId = `role-doc-${role.key}-${index}`;
+
+                        return (
+                          <div
+                            key={label}
+                            className="flex items-center gap-3 rounded-md border bg-secondary/30 p-3"
+                          >
+                            <FileText className="h-4 w-4 shrink-0 text-primary" />
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-sm font-medium">
+                                {label}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {file ? file.name : "PDF, JPEG, PNG or WEBP"}
+                              </p>
+                            </div>
+                            {file ? (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() =>
+                                  setDocumentFiles((current) => ({
+                                    ...current,
+                                    [role.team]: {
+                                      ...(current[role.team] ?? {}),
+                                      [label]: undefined,
+                                    },
+                                  }))
+                                }
+                                aria-label={`Remove ${label}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <label
+                                htmlFor={inputId}
+                                className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-secondary hover:text-secondary-foreground"
+                              >
+                                <Upload className="h-4 w-4" />
+                                Upload
+                              </label>
+                            )}
+                            <input
+                              id={inputId}
+                              type="file"
+                              accept="application/pdf,image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (!file) return;
+                                setDocumentFiles((current) => ({
+                                  ...current,
+                                  [role.team]: {
+                                    ...(current[role.team] ?? {}),
+                                    [label]: file,
+                                  },
+                                }));
+                                event.target.value = "";
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                     <Button
                       size="sm"
                       onClick={() => handleApply(role.team, role.label)}
-                      disabled={apply.isPending}
+                      disabled={apply.isPending || missingDocuments}
                     >
                       Apply for role
                     </Button>

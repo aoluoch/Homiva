@@ -18,6 +18,7 @@ import {
 import { KENYA_COUNTIES } from "@/lib/config";
 import { filePreview } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
+import { PropertyLocationPicker } from "@/components/location/PropertyLocationPicker";
 import { useProperty } from "@/hooks/useProperties";
 import {
   useCreateProperty,
@@ -34,6 +35,8 @@ const emptyForm: PropertyFormValues = {
   county: "Nairobi",
   town: "",
   address: "",
+  latitude: "",
+  longitude: "",
   bedrooms: 1,
   bathrooms: 1,
   sizeSqft: undefined,
@@ -65,6 +68,8 @@ export default function ListingFormPage() {
         county: existing.county,
         town: existing.town,
         address: existing.address ?? "",
+        latitude: existing.latitude ?? "",
+        longitude: existing.longitude ?? "",
         bedrooms: existing.bedrooms,
         bathrooms: existing.bathrooms,
         sizeSqft: existing.sizeSqft,
@@ -103,6 +108,8 @@ export default function ListingFormPage() {
       bedrooms: Number(form.bedrooms),
       bathrooms: Number(form.bathrooms),
       sizeSqft: form.sizeSqft ? Number(form.sizeSqft) : undefined,
+      latitude: form.latitude?.trim() || undefined,
+      longitude: form.longitude?.trim() || undefined,
       amenities: amenitiesText
         .split(",")
         .map((a) => a.trim())
@@ -261,6 +268,21 @@ export default function ListingFormPage() {
                 placeholder="Street, building, landmark"
               />
             </div>
+            <PropertyLocationPicker
+              latitude={form.latitude}
+              longitude={form.longitude}
+              searchHint={[form.address, form.town, form.county, "Kenya"]
+                .filter(Boolean)
+                .join(", ")}
+              onChange={({ latitude, longitude, formattedAddress }) =>
+                setForm((current) => ({
+                  ...current,
+                  latitude,
+                  longitude,
+                  address: formattedAddress ?? current.address,
+                }))
+              }
+            />
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="bedrooms">Bedrooms</Label>

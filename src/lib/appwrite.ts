@@ -34,11 +34,11 @@ export function filePreview(
     width: opts.width,
     height: opts.height,
   });
-  return typeof url === "string" ? url : url.toString();
+  return url;
 }
 
 /** Build a full-resolution view URL for a file. */
 export function fileView(bucketId: string, fileId: string): string {
   const url = storage.getFileView({ bucketId, fileId });
-  return typeof url === "string" ? url : url.toString();
+  return url;
 }

@@ -1,12 +1,17 @@
 import { Link } from "react-router-dom";
-import { Logo } from "./Logo";
 
 export function Footer() {
   return (
     <footer className="mt-16 border-t bg-secondary/40">
       <div className="container grid gap-8 py-12 md:grid-cols-4">
         <div className="space-y-3">
-          <Logo />
+          <Link
+            to="/"
+            className="inline-flex text-2xl font-black tracking-tight text-foreground"
+            aria-label="Homiva home"
+          >
+            Homiva
+          </Link>
           <p className="max-w-xs text-sm text-muted-foreground">
             Your complete home companion. Discover properties, manage homes and
             access trusted home services across Kenya.

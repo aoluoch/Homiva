@@ -86,13 +86,13 @@ const int = (
       tableId,
       key,
       required,
-      default: required ? undefined : def,
+      xdefault: required ? undefined : def,
     }),
   );
 
 const bool = (tableId: string, key: string, def = false) =>
   safe(`${tableId}.${key}`, () =>
-    tablesDB.createBooleanColumn({ databaseId: DB, tableId, key, required: false, default: def }),
+    tablesDB.createBooleanColumn({ databaseId: DB, tableId, key, required: false, xdefault: def }),
   );
 
 const dt = (tableId: string, key: string) =>
@@ -113,7 +113,7 @@ const enumCol = (
       key,
       elements,
       required: false,
-      default: def,
+      xdefault: def,
     }),
   );
 
@@ -257,6 +257,15 @@ async function main() {
       enabled: true,
     }),
   );
+  await safe("bucket verification-documents", () =>
+    storage.createBucket({
+      bucketId: "verification-documents",
+      name: "Verification Documents",
+      permissions: [P.createUsers, P.readAdmins],
+      fileSecurity: true,
+      enabled: true,
+    }),
+  );
 
   // 4) Tables
   console.log("\nTables:");
@@ -304,6 +313,10 @@ async function main() {
     P.updateAdmins,
   ]);
   await createTable("reviews", "Reviews", [P.createUsers, P.readAny, P.updateAdmins]);
+  await createTable("audit_logs", "Audit Logs", [
+    P.createUsers,
+    P.readAdmins,
+  ]);
 
   // New module tables
   await createTable("bookings", "Bookings", [
@@ -336,6 +349,24 @@ async function main() {
   await createTable("messages", "Messages", [P.createUsers]);
   await createTable("notifications", "Notifications", [P.createUsers]);
 
+  // Module C (buying) + Module G (disputes)
+  await createTable("disputes", "Disputes", [
+    P.createUsers,
+    P.readAdmins,
+    P.updateAdmins,
+    P.deleteAdmins,
+  ]);
+  await createTable("mortgage_enquiries", "Mortgage Enquiries", [
+    P.createUsers,
+    P.readAdmins,
+    P.updateAdmins,
+  ]);
+  await createTable("viewing_requests", "Viewing Requests", [
+    P.createUsers,
+    P.readAdmins,
+    P.updateAdmins,
+  ]);
+
   // 5) Columns
   console.log("\nColumns:");
   // profiles
@@ -360,6 +391,8 @@ async function main() {
     "pending",
   );
   await str("role_applications", "message", 2000);
+  await strArr("role_applications", "documentIds");
+  await strArr("role_applications", "documentLabels");
   await str("role_applications", "reviewedBy", 64);
   await str("role_applications", "reviewNote", 2000);
 
@@ -371,6 +404,8 @@ async function main() {
   await str("properties", "county", 64);
   await str("properties", "town", 128);
   await str("properties", "address", 512);
+  await str("properties", "latitude", 32);
+  await str("properties", "longitude", 32);
   await int("properties", "bedrooms", false, 0);
   await int("properties", "bathrooms", false, 0);
   await int("properties", "sizeSqft", false, 0);
@@ -427,13 +462,13 @@ async function main() {
   await int("payments", "amount", false, 0);
   await str("payments", "currency", 8);
   await enumCol("payments", "purpose", ["viewing_fee", "service", "booking", "order", "subscription"], "viewing_fee");
-  await enumCol("payments", "method", ["mock", "mpesa", "paystack"], "mock");
+  await enumCol("payments", "method", ["mock", "paystack"], "paystack");
   await enumCol("payments", "status", ["pending", "paid", "failed"], "paid");
   await str("payments", "reference", 128);
   await str("payments", "relatedId", 64);
   // Widen enums in case the columns already existed with fewer values.
   await updateEnumCol("payments", "purpose", ["viewing_fee", "service", "booking", "order", "subscription"], "viewing_fee");
-  await updateEnumCol("payments", "method", ["mock", "mpesa", "paystack"], "mock");
+  await updateEnumCol("payments", "method", ["mock", "paystack"], "paystack");
 
   // service_requests
   await str("service_requests", "userId", 64, true);
@@ -469,12 +504,18 @@ async function main() {
   // invoices
   await str("invoices", "userId", 64, true);
   await str("invoices", "serviceRequestId", 64);
+  await str("invoices", "invoiceNumber", 32);
+  await str("invoices", "title", 255);
+  await str("invoices", "customerName", 255);
+  await str("invoices", "providerId", 64);
+  await str("invoices", "providerName", 255);
   await int("invoices", "baseFee", false, 0);
   await int("invoices", "labour", false, 0);
   await int("invoices", "materials", false, 0);
   await int("invoices", "transport", false, 0);
   await int("invoices", "emergencySurcharge", false, 0);
   await int("invoices", "total", false, 0);
+  await str("invoices", "currency", 8);
   await str("invoices", "status", 32);
 
   // reviews
@@ -485,6 +526,13 @@ async function main() {
   await str("reviews", "targetId", 64, true);
   await int("reviews", "rating", false, 5);
   await str("reviews", "comment", 2000);
+
+  // audit_logs
+  await str("audit_logs", "actorId", 64, true);
+  await str("audit_logs", "action", 64, true);
+  await str("audit_logs", "targetType", 64, true);
+  await str("audit_logs", "targetId", 64);
+  await str("audit_logs", "summary", 1000, true);
 
   // bookings
   await str("bookings", "propertyId", 64, true);
@@ -577,6 +625,49 @@ async function main() {
   await str("notifications", "link", 512);
   await bool("notifications", "read", false);
 
+  // disputes
+  await str("disputes", "raisedBy", 64, true);
+  await str("disputes", "raisedByName", 255);
+  await enumCol("disputes", "subjectType", ["order", "service", "booking", "property", "other"], "other");
+  await str("disputes", "subjectId", 64);
+  await str("disputes", "subjectTitle", 255);
+  await str("disputes", "category", 64);
+  await str("disputes", "description", 3000, true);
+  await enumCol("disputes", "status", ["open", "investigating", "resolved", "rejected"], "open");
+  await str("disputes", "resolution", 2000);
+  await str("disputes", "handledBy", 64);
+
+  // mortgage_enquiries
+  await str("mortgage_enquiries", "userId", 64, true);
+  await str("mortgage_enquiries", "userName", 255);
+  await str("mortgage_enquiries", "userEmail", 255);
+  await str("mortgage_enquiries", "phone", 32);
+  await str("mortgage_enquiries", "propertyId", 64, true);
+  await str("mortgage_enquiries", "propertyTitle", 255);
+  await int("mortgage_enquiries", "propertyPrice", false, 0);
+  await int("mortgage_enquiries", "deposit", false, 0);
+  await int("mortgage_enquiries", "loanAmount", false, 0);
+  await int("mortgage_enquiries", "termYears", false, 20);
+  await int("mortgage_enquiries", "interestRate", false, 0);
+  await int("mortgage_enquiries", "monthlyRepayment", false, 0);
+  await int("mortgage_enquiries", "monthlyIncome", false, 0);
+  await str("mortgage_enquiries", "message", 2000);
+  await enumCol("mortgage_enquiries", "status", ["new", "contacted", "closed"], "new");
+  await str("mortgage_enquiries", "note", 2000);
+
+  // viewing_requests
+  await str("viewing_requests", "userId", 64, true);
+  await str("viewing_requests", "userName", 255);
+  await str("viewing_requests", "phone", 32);
+  await str("viewing_requests", "propertyId", 64, true);
+  await str("viewing_requests", "propertyTitle", 255);
+  await str("viewing_requests", "ownerId", 64);
+  await dt("viewing_requests", "preferredDate");
+  await dt("viewing_requests", "alternateDate");
+  await str("viewing_requests", "message", 2000);
+  await enumCol("viewing_requests", "status", ["requested", "confirmed", "declined", "completed"], "requested");
+  await str("viewing_requests", "note", 2000);
+
   // 6) Indexes (wait for columns to finish processing first)
   console.log("\nWaiting for columns to become available...");
   await sleep(4000);
@@ -592,6 +683,8 @@ async function main() {
   await index("properties", "idx_bedrooms", IndexType.Key, ["bedrooms"]);
   await index("properties", "idx_owner", IndexType.Key, ["ownerId"]);
   await index("properties", "idx_title_ft", IndexType.Fulltext, ["title"]);
+  await index("properties", "idx_latitude", IndexType.Key, ["latitude"]);
+  await index("properties", "idx_longitude", IndexType.Key, ["longitude"]);
   await index("viewing_payments", "idx_user", IndexType.Key, ["userId"]);
   await index("viewing_payments", "idx_prop", IndexType.Key, ["propertyId"]);
   await index("recently_viewed", "idx_user", IndexType.Key, ["userId"]);
@@ -626,7 +719,22 @@ async function main() {
   await index("messages", "idx_thread", IndexType.Key, ["threadId"]);
   await index("messages", "idx_receiver", IndexType.Key, ["receiverId"]);
   await index("reviews", "idx_target", IndexType.Key, ["targetId"]);
+  await index("audit_logs", "idx_actor", IndexType.Key, ["actorId"]);
+  await index("audit_logs", "idx_action", IndexType.Key, ["action"]);
+  await index("audit_logs", "idx_target", IndexType.Key, ["targetType", "targetId"]);
   await index("notifications", "idx_user", IndexType.Key, ["userId"]);
+  await index("invoices", "idx_user", IndexType.Key, ["userId"]);
+  await index("invoices", "idx_provider", IndexType.Key, ["providerId"]);
+  await index("invoices", "idx_service", IndexType.Key, ["serviceRequestId"]);
+  await index("disputes", "idx_raiser", IndexType.Key, ["raisedBy"]);
+  await index("disputes", "idx_status", IndexType.Key, ["status"]);
+  await index("mortgage_enquiries", "idx_user", IndexType.Key, ["userId"]);
+  await index("mortgage_enquiries", "idx_prop", IndexType.Key, ["propertyId"]);
+  await index("mortgage_enquiries", "idx_status", IndexType.Key, ["status"]);
+  await index("viewing_requests", "idx_user", IndexType.Key, ["userId"]);
+  await index("viewing_requests", "idx_owner", IndexType.Key, ["ownerId"]);
+  await index("viewing_requests", "idx_prop", IndexType.Key, ["propertyId"]);
+  await index("viewing_requests", "idx_status", IndexType.Key, ["status"]);
 
   // 7) Bootstrap admin
   if (adminEmail) {

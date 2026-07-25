@@ -20,7 +20,7 @@ export type PaymentPurpose =
   | "booking"
   | "order"
   | "subscription";
-export type PaymentMethod = "mock" | "mpesa" | "paystack";
+export type PaymentMethod = "mock" | "paystack";
 
 export interface Profile extends BaseRow {
   userId: string;
@@ -40,6 +40,8 @@ export interface RoleApplication extends BaseRow {
   roleLabel: string;
   status: ApplicationStatus;
   message?: string;
+  documentIds?: string[];
+  documentLabels?: string[];
   reviewedBy?: string;
   reviewNote?: string;
 }
@@ -52,6 +54,8 @@ export interface Property extends BaseRow {
   county: string;
   town: string;
   address?: string;
+  latitude?: string;
+  longitude?: string;
   bedrooms: number;
   bathrooms: number;
   sizeSqft?: number;
@@ -159,16 +163,32 @@ export interface ServiceProvider extends BaseRow {
   rating?: number;
 }
 
+export interface AuditLog extends BaseRow {
+  actorId: string;
+  action: string;
+  targetType: string;
+  targetId?: string;
+  summary: string;
+}
+
+export type InvoiceStatus = "unpaid" | "paid" | "cancelled";
+
 export interface Invoice extends BaseRow {
-  userId: string;
+  userId: string; // the customer the invoice is billed to
   serviceRequestId?: string;
+  invoiceNumber?: string;
+  title?: string;
+  customerName?: string;
+  providerId?: string;
+  providerName?: string;
   baseFee: number;
   labour: number;
   materials: number;
   transport: number;
   emergencySurcharge: number;
   total: number;
-  status: string;
+  currency?: string;
+  status: InvoiceStatus | string;
 }
 
 export interface Review extends BaseRow {
@@ -295,4 +315,64 @@ export interface Notification extends BaseRow {
   body?: string;
   link?: string;
   read: boolean;
+}
+
+// --- Module C: Property Buying ----------------------------------------------
+
+export type MortgageEnquiryStatus = "new" | "contacted" | "closed";
+
+export interface MortgageEnquiry extends BaseRow {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  phone?: string;
+  propertyId: string;
+  propertyTitle: string;
+  propertyPrice: number;
+  deposit: number;
+  loanAmount: number;
+  termYears: number;
+  interestRate: number;
+  monthlyRepayment: number;
+  monthlyIncome?: number;
+  message?: string;
+  status: MortgageEnquiryStatus | string;
+  note?: string;
+}
+
+export type ViewingRequestStatus =
+  | "requested"
+  | "confirmed"
+  | "declined"
+  | "completed";
+
+export interface ViewingRequest extends BaseRow {
+  userId: string;
+  userName: string;
+  phone?: string;
+  propertyId: string;
+  propertyTitle: string;
+  ownerId: string;
+  preferredDate: string; // ISO
+  alternateDate?: string; // ISO
+  message?: string;
+  status: ViewingRequestStatus | string;
+  note?: string;
+}
+
+// --- Module G: Disputes -----------------------------------------------------
+
+export type DisputeStatus = "open" | "investigating" | "resolved" | "rejected";
+
+export interface Dispute extends BaseRow {
+  raisedBy: string;
+  raisedByName: string;
+  subjectType: string; // order | service | booking | property | other
+  subjectId?: string;
+  subjectTitle?: string;
+  category: string;
+  description: string;
+  status: DisputeStatus | string;
+  resolution?: string;
+  handledBy?: string;
 }

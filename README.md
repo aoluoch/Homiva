@@ -12,7 +12,8 @@ Estate Marketplace)**.
 - **Frontend:** React + TypeScript + Vite + Tailwind CSS + Shadcn UI
 - **Data/Server:** [Appwrite Cloud](https://appwrite.io) (TablesDB, Teams, Storage, Functions)
 - **State/Data fetching:** TanStack Query
-- **Payments:** Mock viewing-fee flow now; M-PESA (Daraja) planned
+- **Payments:** Paystack checkout with server-side verification and fulfillment
+  in the `homiva-payments` Appwrite Function.
 
 ## What's included (Phase 1)
 
@@ -20,7 +21,7 @@ Estate Marketplace)**.
   Landlord, Airbnb Owner, Service Provider) using Appwrite **Teams**.
 - Real estate marketplace: Buy / Rent / Airbnb tabs, search + filters, property
   detail pages.
-- **KES 200 viewing fee** (mock) to unlock a property's exact address and
+- **KES 200 viewing fee** via Paystack to unlock a property's exact address and
   contact details, with recently-viewed history and saved/favorite properties.
 - Property inquiries ("Contact Homiva").
 - Owner dashboard to create/manage listings with image uploads (submitted for
@@ -48,7 +49,8 @@ npm install
 
 # 2. Configure environment
 cp .env.example .env
-#    Then edit .env and set APPWRITE_API_KEY (and optionally ADMIN_EMAIL).
+#    Then edit .env and set APPWRITE_API_KEY, VITE_PAYSTACK_PUBLIC_KEY,
+#    and optionally ADMIN_EMAIL.
 
 # 3. Provision the Appwrite backend (database, tables, indexes, buckets, teams)
 npm run setup:appwrite
@@ -61,6 +63,21 @@ npm run dev
 ```
 
 Open http://localhost:5173.
+
+## Codex MCP setup
+
+This repo includes a project-scoped Codex MCP config at
+`.codex/config.toml` for the Appwrite MCP server. The config intentionally
+does not store `APPWRITE_API_KEY`; export it in the shell that launches Codex:
+
+```bash
+export APPWRITE_API_KEY="your-appwrite-api-key"
+codex
+```
+
+After changing MCP config, restart Codex and use `/mcp` to confirm the
+`appwrite-api` server is connected. If Codex says the project is untrusted,
+trust the project so project-local `.codex/config.toml` settings are loaded.
 
 ### Making yourself an admin
 
@@ -95,6 +112,36 @@ needs an API key to manage team memberships).
 Until the function is deployed, browsing, payments, listings and applications
 all work; only the admin approve/reject/suspend actions require it.
 
+## Deploying the Paystack payments function
+
+Payments run through `homiva-payments`. The browser only receives the Paystack
+public key; the live secret key must be stored as an Appwrite Function **secret
+variable**, never in the app `.env` file.
+
+1. Make sure `.env` has `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`,
+   `APPWRITE_API_KEY`, and `VITE_PAYSTACK_PUBLIC_KEY`.
+2. Deploy or update the function:
+   ```bash
+   npm run deploy:payments
+   ```
+3. In Appwrite Console, open Functions -> `homiva-payments` -> Variables and add:
+   - key: `PAYSTACK_SECRET_KEY`
+   - value: your `sk_live_...` key
+   - secret: enabled
+
+If you need the deploy script to set the secret variable for you, export it only
+for that shell session before running the command:
+
+```bash
+export PAYSTACK_SECRET_KEY="sk_live_..."
+npm run deploy:payments
+unset PAYSTACK_SECRET_KEY
+```
+
+The function validates each Paystack transaction server-side before fulfillment:
+viewing fees, services, bookings, marketplace orders, and storefront
+subscriptions are checked against Appwrite records before any row is updated.
+
 ## Role & permission model
 
 - Roles are Appwrite **Teams**: `admins`, `agents`, `landlords`,
@@ -120,14 +167,13 @@ scripts/
   seed.ts            Sample property data
 functions/
   homiva-admin/      Privileged admin actions (Appwrite Function)
+  homiva-payments/   Paystack verification + fulfillment (Appwrite Function)
 ```
 
 ## Notes & limitations (MVP)
 
-- Payments are **mocked**: a successful KES 200 charge is simulated and recorded.
-  Real M-PESA Daraja STK Push + server-side verification is a later phase.
-- Contact/address gating behind the viewing fee is currently enforced in the
-  UI. When M-PESA lands, this will move server-side (function-served details).
-- Maintenance & Repairs and Mama Fua / Cleaning modules have database tables
-  provisioned but no UI yet (Phase 2/3).
+- Paystack is the active payment provider. The live secret key belongs only in
+  the deployed `homiva-payments` function's secret variables.
+- Contact/address gating behind the viewing fee is still checked in the UI, with
+  unlock records created only after server-side Paystack verification.
 # Homiva

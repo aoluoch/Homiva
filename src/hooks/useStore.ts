@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
+import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
 import type { Order, Product, Storefront } from "@/types/models";
@@ -86,8 +86,6 @@ export function useCreateStorefront() {
           Permission.read(Role.any()),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          Permission.update(Role.team(TEAMS.admins)),
-          Permission.delete(Role.team(TEAMS.admins)),
         ],
       }) as unknown as Storefront;
     },
@@ -262,8 +260,6 @@ export function useCreateProduct() {
           Permission.read(Role.any()),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          Permission.update(Role.team(TEAMS.admins)),
-          Permission.delete(Role.team(TEAMS.admins)),
         ],
       });
     },

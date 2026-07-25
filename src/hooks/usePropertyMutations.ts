@@ -13,6 +13,8 @@ export interface PropertyFormValues {
   county: string;
   town: string;
   address?: string;
+  latitude?: string;
+  longitude?: string;
   bedrooms: number;
   bathrooms: number;
   sizeSqft?: number;
@@ -82,9 +84,6 @@ export function useCreateProperty() {
           Permission.read(Role.user(user.$id)),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          Permission.read(Role.team(TEAMS.admins)),
-          Permission.update(Role.team(TEAMS.admins)),
-          Permission.delete(Role.team(TEAMS.admins)),
         ],
       });
     },

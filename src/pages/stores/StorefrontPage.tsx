@@ -16,7 +16,7 @@ function asset(fid?: string, w = 200, h = 200) {
     width: w,
     height: h,
   });
-  return typeof url === "string" ? url : url.toString();
+  return url;
 }
 
 export default function StorefrontPage() {

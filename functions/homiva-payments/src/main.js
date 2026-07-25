@@ -3,8 +3,9 @@ import { Client, TablesDB, ID, Permission, Role, Query } from "node-appwrite";
 /**
  * Homiva payments function.
  *
- * Verifies a Paystack transaction server-side (using the secret key) and then
- * fulfills the purchase depending on `purpose`:
+ * Verifies a Paystack transaction server-side using a function-only secret
+ * variable, validates the paid amount against Appwrite data, then fulfills the
+ * purchase depending on `purpose`:
  *   - viewing_fee  -> unlock a property for the user (viewing_payments row)
  *   - service      -> mark a service_request as paid
  *   - booking      -> confirm an Airbnb booking
@@ -14,8 +15,9 @@ import { Client, TablesDB, ID, Permission, Role, Query } from "node-appwrite";
  * All fulfillment happens here (never trusting the client) after Paystack
  * confirms the charge succeeded.
  *
- * Env:
- *   PAYSTACK_SECRET_KEY  - required, Paystack secret key (sk_...)
+ * Runtime secrets:
+ *   PAYSTACK_SECRET_KEY  - required Appwrite function secret variable (sk_...)
+ *                          Do not store the live key in the app .env file.
  * Auth:
  *   x-appwrite-user-id   - authenticated caller (injected by Appwrite)
  *   x-appwrite-key       - dynamic API key (recommended) OR APPWRITE_API_KEY env
@@ -29,12 +31,14 @@ const T = {
   bookings: "bookings",
   orders: "orders",
   products: "products",
+  properties: "properties",
   subscriptions: "subscriptions",
   storefronts: "storefronts",
   profiles: "profiles",
   notifications: "notifications",
 };
 
+const VIEWING_FEE_KES = 200;
 const PLAN_PRICES = { free: 0, pro: 2500, premium: 6000 };
 
 export default async ({ req, res, log, error }) => {
@@ -93,6 +97,10 @@ export default async ({ req, res, log, error }) => {
     return fail(`Payment not successful (status: ${tx.status}).`);
   }
 
+  if ((tx.currency || "").toUpperCase() !== "KES") {
+    return fail("Only KES Paystack payments are accepted.");
+  }
+
   // Guard against replaying an already-fulfilled reference.
   try {
     const existing = await tablesDB.listRows({
@@ -101,6 +109,9 @@ export default async ({ req, res, log, error }) => {
       queries: [Query.equal("reference", reference), Query.limit(1)],
     });
     if (existing.rows.length > 0) {
+      if (existing.rows[0].userId !== callerId) {
+        return fail("This payment reference has already been used.", 409);
+      }
       return res.json({ ok: true, alreadyProcessed: true, payment: existing.rows[0] });
     }
   } catch (e) {
@@ -149,11 +160,29 @@ export default async ({ req, res, log, error }) => {
       permissions: userPerms,
     });
 
+  const assertPaidAmount = (expectedKES) => {
+    if (!Number.isFinite(expectedKES) || expectedKES <= 0) {
+      throw new Error("Invalid expected payment amount.");
+    }
+    if (amountKES !== Math.round(expectedKES)) {
+      throw new Error(`Payment amount mismatch. Expected KES ${Math.round(expectedKES)}, received KES ${amountKES}.`);
+    }
+  };
+
   try {
     switch (purpose) {
       case "viewing_fee": {
         const { propertyId } = metadata;
         if (!propertyId) return fail("Missing propertyId.");
+        const property = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+        });
+        if (property.status !== "approved") {
+          return fail("Only approved properties can be unlocked.");
+        }
+        assertPaidAmount(VIEWING_FEE_KES);
         const payment = await recordPayment();
         const viewing = await tablesDB.createRow({
           databaseId: DB,
@@ -175,6 +204,19 @@ export default async ({ req, res, log, error }) => {
       case "service": {
         const { serviceRequestId } = metadata;
         if (!serviceRequestId) return fail("Missing serviceRequestId.");
+        const request = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.serviceRequests,
+          rowId: serviceRequestId,
+        });
+        if (request.userId !== callerId) {
+          return fail("You can only pay for your own service request.", 403);
+        }
+        if (request.status === "paid" || request.status === "cancelled") {
+          return fail(`Service request cannot be paid while ${request.status}.`);
+        }
+        const expected = Number(request.quotedAmount || request.estimatedMax || request.estimatedMin || 0);
+        assertPaidAmount(expected);
         await recordPayment();
         const updated = await tablesDB.updateRow({
           databaseId: DB,
@@ -186,8 +228,22 @@ export default async ({ req, res, log, error }) => {
       }
 
       case "booking": {
-        const { propertyId, propertyTitle, hostId, checkIn, checkOut, nights, guests } = metadata;
+        const { propertyId, checkIn, checkOut, guests } = metadata;
         if (!propertyId || !checkIn || !checkOut) return fail("Missing booking details.");
+        const property = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+        });
+        if (property.status !== "approved" || property.listingType !== "airbnb") {
+          return fail("Only approved Airbnb listings can be booked.");
+        }
+        const nights = nightsBetween(checkIn, checkOut);
+        if (nights <= 0) return fail("Check-out must be after check-in.");
+        const guestCount = Math.max(1, Number(guests) || 1);
+        assertPaidAmount(Number(property.price || 0) * nights);
+        const hasOverlap = await bookingOverlaps(tablesDB, propertyId, checkIn, checkOut);
+        if (hasOverlap) return fail("Those dates are no longer available.", 409);
         await recordPayment();
         const guestName = await profileName(tablesDB, callerId);
         const booking = await tablesDB.createRow({
@@ -196,14 +252,14 @@ export default async ({ req, res, log, error }) => {
           rowId: ID.unique(),
           data: {
             propertyId,
-            propertyTitle: propertyTitle || "",
+            propertyTitle: property.title || "",
             guestId: callerId,
             guestName,
-            hostId: hostId || "",
+            hostId: property.ownerId || "",
             checkIn,
             checkOut,
-            nights: Number(nights) || 1,
-            guests: Number(guests) || 1,
+            nights,
+            guests: guestCount,
             amount: amountKES,
             status: "confirmed",
             paymentRef: reference,
@@ -211,21 +267,25 @@ export default async ({ req, res, log, error }) => {
           permissions: [
             ...userPerms,
             Permission.update(Role.user(callerId)),
-            ...(hostId ? [Permission.read(Role.user(hostId))] : []),
+            ...(property.ownerId ? [Permission.read(Role.user(property.ownerId))] : []),
           ],
         });
-        if (hostId) await notify(hostId, "New booking", `${guestName} booked ${propertyTitle || "your listing"}.`, "/host/bookings");
+        if (property.ownerId) await notify(property.ownerId, "New booking", `${guestName} booked ${property.title || "your listing"}.`, "/host/bookings");
         return res.json({ ok: true, booking });
       }
 
       case "order": {
         const { productId, quantity = 1, phone, address } = metadata;
         if (!productId) return fail("Missing productId.");
+        const qty = Math.max(1, Math.floor(Number(quantity) || 1));
         const product = await tablesDB.getRow({
           databaseId: DB,
           tableId: T.products,
           rowId: productId,
         });
+        if (product.status !== "approved") return fail("This product is not available for purchase.");
+        if ((product.stock || 0) < qty) return fail("Not enough stock available.");
+        assertPaidAmount(Number(product.price || 0) * qty);
         await recordPayment();
         const buyerName = await profileName(tablesDB, callerId);
         const order = await tablesDB.createRow({
@@ -238,7 +298,7 @@ export default async ({ req, res, log, error }) => {
             sellerId: product.sellerId,
             productId,
             productTitle: product.title,
-            quantity: Number(quantity) || 1,
+            quantity: qty,
             amount: amountKES,
             status: "paid",
             phone: phone || "",
@@ -253,7 +313,7 @@ export default async ({ req, res, log, error }) => {
         });
         // Decrement stock (best-effort).
         try {
-          const newStock = Math.max(0, (product.stock || 0) - (Number(quantity) || 1));
+          const newStock = Math.max(0, (product.stock || 0) - qty);
           await tablesDB.updateRow({
             databaseId: DB,
             tableId: T.products,
@@ -270,6 +330,17 @@ export default async ({ req, res, log, error }) => {
       case "subscription": {
         const { plan, storefrontId } = metadata;
         if (!plan || !(plan in PLAN_PRICES)) return fail("Invalid plan.");
+        assertPaidAmount(PLAN_PRICES[plan]);
+        if (storefrontId) {
+          const store = await tablesDB.getRow({
+            databaseId: DB,
+            tableId: T.storefronts,
+            rowId: storefrontId,
+          });
+          if (store.ownerId !== callerId) {
+            return fail("You can only subscribe your own storefront.", 403);
+          }
+        }
         await recordPayment();
         const now = new Date();
         const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -328,4 +399,30 @@ async function profileName(tablesDB, userId) {
   } catch {
     return "Homiva user";
   }
+}
+
+function nightsBetween(checkIn, checkOut) {
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+}
+
+async function bookingOverlaps(tablesDB, propertyId, checkIn, checkOut) {
+  const existing = await tablesDB.listRows({
+    databaseId: DB,
+    tableId: T.bookings,
+    queries: [
+      Query.equal("propertyId", propertyId),
+      Query.equal("status", ["confirmed", "completed"]),
+      Query.limit(200),
+    ],
+  });
+  const start = new Date(checkIn).getTime();
+  const end = new Date(checkOut).getTime();
+  return existing.rows.some((booking) => {
+    const bookingStart = new Date(booking.checkIn).getTime();
+    const bookingEnd = new Date(booking.checkOut).getTime();
+    return start < bookingEnd && end > bookingStart;
+  });
 }

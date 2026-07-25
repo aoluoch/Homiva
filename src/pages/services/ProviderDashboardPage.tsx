@@ -1,24 +1,37 @@
-import { useState } from "react";
-import { Briefcase, Inbox, Loader2, MapPin } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BadgeCheck, Briefcase, Inbox, Loader2, MapPin, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SERVICE_CATEGORIES } from "@/lib/config";
+import {
+  KENYA_COUNTIES,
+  SERVICE_CATEGORIES,
+} from "@/lib/config";
 import { formatKES, timeAgo } from "@/lib/utils";
 import { storage } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   useAcceptJob,
+  useMyServiceProviderProfile,
   useOpenServiceRequests,
   useProviderJobs,
+  useSaveServiceProviderProfile,
   useUpdateServiceStatus,
 } from "@/hooks/useServices";
-import type { ServiceRequest } from "@/types/models";
+import type { ServiceProvider, ServiceRequest } from "@/types/models";
 
 function label(key: string) {
   return SERVICE_CATEGORIES.find((c) => c.key === key)?.label ?? key;
@@ -31,18 +44,28 @@ function photoUrl(id: string) {
     width: 200,
     height: 200,
   });
-  return typeof url === "string" ? url : url.toString();
+  return url;
 }
 
 export default function ProviderDashboardPage() {
-  const { data: open, isLoading: loadingOpen } = useOpenServiceRequests();
+  const { data: providerProfile } = useMyServiceProviderProfile();
+  const matchedCategories = providerProfile?.verified
+    ? providerProfile.categories
+    : undefined;
+  const { data: open, isLoading: loadingOpen } =
+    useOpenServiceRequests(matchedCategories);
   const { data: jobs, isLoading: loadingJobs } = useProviderJobs();
   const accept = useAcceptJob();
   const updateStatus = useUpdateServiceStatus();
   const [quotes, setQuotes] = useState<Record<string, string>>({});
+  const canAcceptJobs = !!providerProfile?.verified;
 
   const onAccept = (request: ServiceRequest) => {
     const raw = quotes[request.$id];
+    if (!canAcceptJobs) {
+      toast.error("Complete and verify your provider profile before accepting jobs.");
+      return;
+    }
     const quotedAmount = raw ? Number(raw) : request.estimatedMax ?? 0;
     accept.mutate(
       { request, quotedAmount },
@@ -54,25 +77,40 @@ export default function ProviderDashboardPage() {
   };
 
   return (
-    <div className="container max-w-5xl py-8">
+    <div className="container max-w-5xl py-5 sm:py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Provider Dashboard</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Provider Dashboard</h1>
         <p className="text-muted-foreground">
           Browse open jobs, send quotes, and manage work.
         </p>
       </div>
 
       <Tabs defaultValue="open">
-        <TabsList className="mb-6">
-          <TabsTrigger value="open">
-            <Inbox className="mr-1 h-4 w-4" /> Open jobs
-          </TabsTrigger>
-          <TabsTrigger value="mine">
-            <Briefcase className="mr-1 h-4 w-4" /> My jobs
-          </TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+          <TabsList className="mb-4 h-auto min-w-max justify-start gap-1">
+            <TabsTrigger value="profile" className="h-9">
+              <ShieldCheck className="mr-1 h-4 w-4" /> Profile
+            </TabsTrigger>
+            <TabsTrigger value="open" className="h-9">
+              <Inbox className="mr-1 h-4 w-4" /> Open jobs
+            </TabsTrigger>
+            <TabsTrigger value="mine" className="h-9">
+              <Briefcase className="mr-1 h-4 w-4" /> My jobs
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="profile">
+          <ProviderProfilePanel provider={providerProfile} />
+        </TabsContent>
 
         <TabsContent value="open">
+          {!canAcceptJobs && (
+            <div className="mb-4 rounded-lg border border-dashed bg-secondary/40 p-4 text-sm text-muted-foreground">
+              Submit your provider profile and wait for admin verification before
+              accepting jobs.
+            </div>
+          )}
           {loadingOpen ? (
             <Skeleton className="h-40 w-full" />
           ) : !open || open.length === 0 ? (
@@ -143,7 +181,7 @@ export default function ProviderDashboardPage() {
                       />
                       <Button
                         onClick={() => onAccept(r)}
-                        disabled={accept.isPending}
+                        disabled={accept.isPending || !canAcceptJobs}
                       >
                         {accept.isPending && (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -227,5 +265,120 @@ export default function ProviderDashboardPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function ProviderProfilePanel({
+  provider,
+}: {
+  provider?: ServiceProvider | null;
+}) {
+  const save = useSaveServiceProviderProfile();
+  const [businessName, setBusinessName] = useState("");
+  const [county, setCounty] = useState("Nairobi");
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!provider) return;
+    setBusinessName(provider.businessName ?? "");
+    setCounty(provider.county || "Nairobi");
+    setCategories(provider.categories ?? []);
+  }, [provider]);
+
+  const toggleCategory = (key: string) => {
+    setCategories((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
+    );
+  };
+
+  const submit = () => {
+    save.mutate(
+      {
+        existing: provider,
+        values: { businessName, county, categories },
+      },
+      {
+        onSuccess: () =>
+          toast.success("Provider profile submitted for verification."),
+        onError: (err) => toast.error((err as Error).message),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>Provider profile</CardTitle>
+            <CardDescription>
+              Admins use this profile to verify your service business.
+            </CardDescription>
+          </div>
+          {provider?.verified ? (
+            <Badge variant="success">
+              <BadgeCheck className="mr-1 h-3.5 w-3.5" /> Verified
+            </Badge>
+          ) : (
+            <Badge variant="warning">Pending verification</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="businessName">Business name</Label>
+            <Input
+              id="businessName"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="Amani Plumbing & Repairs"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Primary county</Label>
+            <Select value={county} onValueChange={setCounty}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {KENYA_COUNTIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Service categories</Label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SERVICE_CATEGORIES.map((category) => (
+              <label
+                key={category.key}
+                className="flex items-center gap-2 rounded-lg border p-3 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={categories.includes(category.key)}
+                  onChange={() => toggleCategory(category.key)}
+                  className="h-4 w-4 accent-primary"
+                />
+                {category.label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <Button onClick={submit} disabled={save.isPending}>
+          {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Submit for verification
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
