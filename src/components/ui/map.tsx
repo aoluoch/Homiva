@@ -7,8 +7,14 @@ import { Loader2, Locate, Maximize, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const defaultStyles = {
-  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  light: rasterStyle(
+    "carto-light",
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  ),
+  dark: rasterStyle(
+    "carto-dark",
+    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  ),
 };
 
 export type MapViewport = {
@@ -26,6 +32,22 @@ type MapContextValue = {
 };
 
 const MapContext = React.createContext<MapContextValue | null>(null);
+
+function rasterStyle(id: string, tileUrl: string): MapLibreGL.StyleSpecification {
+  return {
+    version: 8,
+    sources: {
+      [id]: {
+        type: "raster",
+        tiles: [tileUrl],
+        tileSize: 256,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      },
+    },
+    layers: [{ id, type: "raster", source: id }],
+  };
+}
 
 export function useMap() {
   const context = React.useContext(MapContext);

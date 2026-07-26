@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Query, tablesDB } from "@/lib/appwrite";
 import { appwriteConfig, TABLES } from "@/lib/config";
+import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import { usePayment } from "@/hooks/usePayment";
 import type { Product } from "@/types/models";
 
@@ -14,33 +15,32 @@ export interface ProductFilters {
   sort?: "newest" | "price_asc" | "price_desc";
 }
 
-/** Browse approved products (public marketplace). */
+function productFilterQueries(filters: ProductFilters) {
+  const q: string[] = [Query.equal("status", "approved")];
+  if (filters.category) q.push(Query.equal("category", filters.category));
+  if (filters.condition) q.push(Query.equal("condition", filters.condition));
+  if (filters.maxPrice) q.push(Query.lessThanEqual("price", filters.maxPrice));
+  if (filters.search) q.push(Query.search("title", filters.search));
+  switch (filters.sort) {
+    case "price_asc":
+      q.push(Query.orderAsc("price"));
+      break;
+    case "price_desc":
+      q.push(Query.orderDesc("price"));
+      break;
+    default:
+      q.push(Query.orderDesc("$createdAt"));
+  }
+  return q;
+}
+
+/** Paginated public marketplace browse (cursor-based). */
 export function useProducts(filters: ProductFilters = {}) {
-  return useQuery({
+  return useAppwriteInfiniteRows<Product>({
     queryKey: ["products", filters],
-    queryFn: async () => {
-      const q = [Query.equal("status", "approved"), Query.limit(60)];
-      if (filters.category) q.push(Query.equal("category", filters.category));
-      if (filters.condition) q.push(Query.equal("condition", filters.condition));
-      if (filters.maxPrice) q.push(Query.lessThanEqual("price", filters.maxPrice));
-      if (filters.search) q.push(Query.search("title", filters.search));
-      switch (filters.sort) {
-        case "price_asc":
-          q.push(Query.orderAsc("price"));
-          break;
-        case "price_desc":
-          q.push(Query.orderDesc("price"));
-          break;
-        default:
-          q.push(Query.orderDesc("$createdAt"));
-      }
-      const res = await tablesDB.listRows({
-        databaseId: DB,
-        tableId: TABLES.products,
-        queries: q,
-      });
-      return res.rows as unknown as Product[];
-    },
+    tableId: TABLES.products,
+    pageSize: PAGE_SIZE.browse,
+    buildQueries: () => productFilterQueries(filters),
   });
 }
 
@@ -60,22 +60,16 @@ export function useProduct(id?: string) {
 }
 
 export function useStoreProducts(storefrontId?: string) {
-  return useQuery({
+  return useAppwriteInfiniteRows<Product>({
     enabled: !!storefrontId,
     queryKey: ["store-products", storefrontId],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
-        databaseId: DB,
-        tableId: TABLES.products,
-        queries: [
-          Query.equal("storefrontId", storefrontId!),
-          Query.equal("status", "approved"),
-          Query.orderDesc("$createdAt"),
-          Query.limit(100),
-        ],
-      });
-      return res.rows as unknown as Product[];
-    },
+    tableId: TABLES.products,
+    pageSize: PAGE_SIZE.browse,
+    buildQueries: () => [
+      Query.equal("storefrontId", storefrontId!),
+      Query.equal("status", "approved"),
+      Query.orderDesc("$createdAt"),
+    ],
   });
 }
 

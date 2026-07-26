@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { BadgeCheck, Mail, MapPin, Phone, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ProductCard } from "@/components/marketplace/ProductCard";
@@ -22,7 +23,12 @@ function asset(fid?: string, w = 200, h = 200) {
 export default function StorefrontPage() {
   const { id } = useParams();
   const { data: store, isLoading } = useStorefront(id);
-  const { data: products } = useStoreProducts(id);
+  const {
+    items: products,
+    hasMore: hasMoreProducts,
+    loadMore: loadMoreProducts,
+    isFetchingNextPage: loadingMoreProducts,
+  } = useStoreProducts(id);
 
   if (isLoading) {
     return (
@@ -94,12 +100,20 @@ export default function StorefrontPage() {
       </div>
 
       <h2 className="mb-4 mt-8 text-xl font-bold">Products</h2>
-      {products && products.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {products.map((p) => (
-            <ProductCard key={p.$id} product={p} />
-          ))}
-        </div>
+      {products.length > 0 ? (
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {products.map((p) => (
+              <ProductCard key={p.$id} product={p} />
+            ))}
+          </div>
+          <LoadMoreButton
+            hasMore={hasMoreProducts}
+            loading={loadingMoreProducts}
+            onLoadMore={loadMoreProducts}
+            label="Load more products"
+          />
+        </>
       ) : (
         <EmptyState
           icon={Store}

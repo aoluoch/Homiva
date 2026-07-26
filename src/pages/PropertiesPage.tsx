@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { PropertyGridSkeleton } from "@/components/property/PropertyCardSkeleton";
@@ -42,7 +43,15 @@ export default function PropertiesPage() {
     [type, county, q, bedrooms, maxPrice, sort],
   );
 
-  const { data: properties, isLoading, isError } = useProperties(filters);
+  const {
+    items: properties,
+    total,
+    isLoading,
+    isError,
+    hasMore,
+    loadMore,
+    isFetchingNextPage,
+  } = useProperties(filters);
 
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -167,16 +176,24 @@ export default function PropertiesPage() {
           title="Couldn't load properties"
           description="Make sure the Appwrite backend has been provisioned (run npm run setup:appwrite), then refresh."
         />
-      ) : properties && properties.length > 0 ? (
+      ) : properties.length > 0 ? (
         <>
           <p className="mb-4 text-sm text-muted-foreground">
-            {properties.length} propert{properties.length === 1 ? "y" : "ies"} found
+            Showing {properties.length}
+            {total > properties.length ? ` of ${total}` : ""} propert
+            {total === 1 ? "y" : "ies"}
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {properties.map((p) => (
               <PropertyCard key={p.$id} property={p} />
             ))}
           </div>
+          <LoadMoreButton
+            hasMore={hasMore}
+            loading={isFetchingNextPage}
+            onLoadMore={loadMore}
+            label="Load more properties"
+          />
         </>
       ) : (
         <EmptyState

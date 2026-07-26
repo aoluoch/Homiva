@@ -29,8 +29,16 @@ export function Footer() {
         <FooterCol
           title="Services"
           links={[
-            { to: "/", label: "Maintenance & Repairs (soon)" },
-            { to: "/", label: "Mama Fua & Cleaning (soon)" },
+            {
+              to: "/services/request?category=repairs",
+              label: "Maintenance & Repairs",
+            },
+            {
+              to: "/services/request?category=cleaning",
+              label: "Mama Fua & Cleaning",
+            },
+            { to: "/services", label: "All home services" },
+            { to: "/services/request", label: "Request a service" },
           ]}
         />
         <FooterCol

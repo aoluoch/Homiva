@@ -2,28 +2,32 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { functions, Query, tablesDB } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { appwriteConfig, TABLES } from "@/lib/config";
+import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type {
   AuditLog,
-  Booking,
   Dispute,
   MortgageEnquiry,
-  Order,
   Product,
   Profile,
   Property,
   RoleApplication,
   ServiceProvider,
-  ServiceRequest,
   Storefront,
-  Subscription,
   ViewingRequest,
 } from "@/types/models";
 
 const DB = appwriteConfig.databaseId;
 
+function useAdminEnabled() {
+  const { isAdmin, loading } = useAuth();
+  return !loading && isAdmin;
+}
+
 /** All user profiles (readable by admins). */
 export function useAllProfiles() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "profiles"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -36,24 +40,23 @@ export function useAllProfiles() {
   });
 }
 
-/** Pending role applications awaiting admin review. */
+/** Role applications for admin review (cursor-paginated). */
 export function usePendingApplications() {
-  return useQuery({
+  const enabled = useAdminEnabled();
+  return useAppwriteInfiniteRows<RoleApplication>({
+    enabled,
     queryKey: ["admin", "applications"],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
-        databaseId: appwriteConfig.databaseId,
-        tableId: TABLES.roleApplications,
-        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
-      });
-      return res.rows as unknown as RoleApplication[];
-    },
+    tableId: TABLES.roleApplications,
+    pageSize: PAGE_SIZE.admin,
+    buildQueries: () => [Query.orderDesc("$createdAt")],
   });
 }
 
 /** Properties pending approval. */
 export function usePendingProperties() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "properties"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -68,7 +71,9 @@ export function usePendingProperties() {
 
 /** Storefronts pending approval (admins can read all). */
 export function usePendingStorefronts() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "storefronts"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -83,7 +88,9 @@ export function usePendingStorefronts() {
 
 /** Products pending approval. */
 export function usePendingProducts() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "products"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -119,11 +126,22 @@ interface AdminActionPayload {
 }
 
 async function callAdmin(payload: AdminActionPayload) {
-  const execution = await functions.createExecution({
-    functionId: appwriteConfig.functions.admin,
-    body: JSON.stringify(payload),
-    async: false,
-  });
+  let execution;
+  try {
+    execution = await functions.createExecution({
+      functionId: appwriteConfig.functions.admin,
+      body: JSON.stringify(payload),
+      async: false,
+    });
+  } catch (err) {
+    const e = err as { code?: number; message?: string };
+    if (e.code === 404 || e.message?.includes("Function")) {
+      throw new Error(
+        `Admin function "${appwriteConfig.functions.admin}" is not deployed or the VITE_APPWRITE_FUNCTION_ADMIN value is wrong. Run npm run deploy:admin, then retry.`,
+      );
+    }
+    throw err;
+  }
 
   let parsed: { ok?: boolean; error?: string } = {};
   try {
@@ -154,7 +172,9 @@ export function useAdminAction() {
 
 /** Service provider verification queue. */
 export function useServiceProviders() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "service-providers"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -169,7 +189,9 @@ export function useServiceProviders() {
 
 /** Admin audit trail for privileged moderation changes. */
 export function useAuditLogs() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "audit-logs"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -187,7 +209,9 @@ export function useAuditLogs() {
 // ---------------------------------------------------------------------------
 
 export function useAllDisputes() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "disputes"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -235,7 +259,9 @@ export function useResolveDispute() {
 // ---------------------------------------------------------------------------
 
 export function useAdminMortgageEnquiries() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "mortgage-enquiries"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -274,7 +300,9 @@ export function useUpdateMortgageEnquiry() {
 }
 
 export function useAdminViewingRequests() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "viewing-requests"],
     queryFn: async () => {
       const res = await tablesDB.listRows({
@@ -318,19 +346,36 @@ async function countOf(tableId: string, queries: unknown[] = []): Promise<number
   return res.total;
 }
 
-async function rowsOf<T>(tableId: string, queries: unknown[] = []): Promise<T[]> {
+/** Sum an amount field over a filtered, capped window (avoids full-table scans). */
+async function sumAmount(
+  tableId: string,
+  queries: unknown[] = [],
+  field: "amount" = "amount",
+  cap = 250,
+): Promise<{ totalRows: number; sum: number }> {
   const res = await tablesDB.listRows({
     databaseId: DB,
     tableId,
-    queries: [...(queries as string[]), Query.limit(1000)],
+    queries: [
+      ...(queries as string[]),
+      Query.orderDesc("$createdAt"),
+      Query.limit(cap),
+    ],
   });
-  return res.rows as unknown as T[];
+  const sum = res.rows.reduce((acc, row) => {
+    const value = (row as Record<string, unknown>)[field];
+    return acc + (typeof value === "number" ? value : 0);
+  }, 0);
+  return { totalRows: res.total, sum };
 }
 
 /** Aggregate platform metrics for the admin overview. */
 export function useAdminStats() {
+  const enabled = useAdminEnabled();
   return useQuery({
+    enabled,
     queryKey: ["admin", "stats"],
+    staleTime: 60_000,
     queryFn: async (): Promise<AdminStats> => {
       const [
         users,
@@ -341,10 +386,10 @@ export function useAdminStats() {
         storefrontsApproved,
         products,
         openDisputes,
-        bookings,
-        orders,
-        services,
-        subscriptions,
+        bookingsMeta,
+        ordersMeta,
+        completedJobs,
+        subscriptionsMeta,
       ] = await Promise.all([
         countOf(TABLES.profiles),
         countOf(TABLES.properties),
@@ -353,28 +398,18 @@ export function useAdminStats() {
         countOf(TABLES.storefronts),
         countOf(TABLES.storefronts, [Query.equal("status", "approved")]),
         countOf(TABLES.products),
-        countOf(TABLES.disputes, [Query.equal("status", ["open", "investigating"])]),
-        rowsOf<Booking>(TABLES.bookings),
-        rowsOf<Order>(TABLES.orders),
-        rowsOf<ServiceRequest>(TABLES.serviceRequests),
-        rowsOf<Subscription>(TABLES.subscriptions, [
-          Query.equal("status", "active"),
+        countOf(TABLES.disputes, [
+          Query.equal("status", ["open", "investigating"]),
         ]),
+        sumAmount(TABLES.bookings, [
+          Query.equal("status", ["confirmed", "completed"]),
+        ]),
+        sumAmount(TABLES.orders, [Query.notEqual("status", "cancelled")]),
+        countOf(TABLES.serviceRequests, [
+          Query.equal("status", ["completed", "paid"]),
+        ]),
+        sumAmount(TABLES.subscriptions, [Query.equal("status", "active")]),
       ]);
-
-      const bookingsGmv = bookings
-        .filter((b) => b.status === "confirmed" || b.status === "completed")
-        .reduce((s, b) => s + (b.amount || 0), 0);
-      const ordersRevenue = orders
-        .filter((o) => o.status !== "cancelled")
-        .reduce((s, o) => s + (o.amount || 0), 0);
-      const completedJobs = services.filter(
-        (r) => r.status === "completed" || r.status === "paid",
-      ).length;
-      const subscriptionMrr = subscriptions.reduce(
-        (s, sub) => s + (sub.amount || 0),
-        0,
-      );
 
       return {
         users,
@@ -384,13 +419,13 @@ export function useAdminStats() {
         storefronts,
         storefrontsApproved,
         products,
-        bookings: bookings.length,
-        bookingsGmv,
-        orders: orders.length,
-        ordersRevenue,
+        bookings: bookingsMeta.totalRows,
+        bookingsGmv: bookingsMeta.sum,
+        orders: ordersMeta.totalRows,
+        ordersRevenue: ordersMeta.sum,
         completedJobs,
-        activeSubscriptions: subscriptions.length,
-        subscriptionMrr,
+        activeSubscriptions: subscriptionsMeta.totalRows,
+        subscriptionMrr: subscriptionsMeta.sum,
         openDisputes,
       };
     },

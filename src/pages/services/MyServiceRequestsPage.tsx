@@ -1,5 +1,12 @@
 import { Link } from "react-router-dom";
-import { ClipboardList, Loader2, Plus } from "lucide-react";
+import {
+  ClipboardList,
+  ExternalLink,
+  Loader2,
+  MapPin,
+  Phone,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +122,7 @@ export default function MyServiceRequestsPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {timeAgo(r.$createdAt)}
                   </p>
+                  <ServiceRequestContact request={r} />
                 </div>
                 <div className="flex shrink-0 gap-2">
                   {(r.status === "completed" || r.status === "accepted" ||
@@ -155,4 +163,54 @@ export default function MyServiceRequestsPage() {
       )}
     </div>
   );
+}
+
+function ServiceRequestContact({ request }: { request: ServiceRequest }) {
+  const location = [request.address, request.town, request.county]
+    .filter(Boolean)
+    .join(", ");
+
+  if (!request.contactPhone && !location) return null;
+
+  return (
+    <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+      {request.contactPhone && (
+        <p className="flex items-center gap-1">
+          <Phone className="h-3.5 w-3.5" />
+          {request.contactPhone}
+        </p>
+      )}
+      {location && (
+        <p className="flex items-start gap-1">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{location}</span>
+        </p>
+      )}
+      {request.latitude && request.longitude && (
+        <a
+          href={serviceRequestMapHref(request)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          Open pinned location
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function serviceRequestMapHref(request: ServiceRequest) {
+  if (request.latitude && request.longitude) {
+    return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+      request.latitude,
+    )}&mlon=${encodeURIComponent(request.longitude)}#map=16/${
+      request.latitude
+    }/${request.longitude}`;
+  }
+  const query = [request.address, request.town, request.county, "Kenya"]
+    .filter(Boolean)
+    .join(", ");
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }

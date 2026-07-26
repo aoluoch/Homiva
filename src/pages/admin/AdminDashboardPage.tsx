@@ -9,7 +9,9 @@ import {
   FileText,
   Inbox,
   Loader2,
+  MapPin,
   Package,
+  Phone,
   ShieldCheck,
   Store,
   Users,
@@ -22,8 +24,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { EmptyState } from "@/components/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PropertyMapPreview } from "@/components/location/PropertyLocationPicker";
 import {
   useAdminStats,
   useAuditLogs,
@@ -50,7 +54,13 @@ import type {
 
 export default function AdminDashboardPage() {
   const { data: stats, isLoading: loadingStats } = useAdminStats();
-  const { data: applications, isLoading: loadingApps } = usePendingApplications();
+  const {
+    items: applications,
+    isLoading: loadingApps,
+    hasMore: hasMoreApps,
+    loadMore: loadMoreApps,
+    isFetchingNextPage: loadingMoreApps,
+  } = usePendingApplications();
   const { data: properties, isLoading: loadingProps } = usePendingProperties();
   const { data: profiles, isLoading: loadingUsers } = useAllProfiles();
   const { data: storefronts, isLoading: loadingStores } = usePendingStorefronts();
@@ -58,7 +68,7 @@ export default function AdminDashboardPage() {
   const { data: providers, isLoading: loadingProviders } = useServiceProviders();
   const { data: auditLogs, isLoading: loadingAuditLogs } = useAuditLogs();
 
-  const pendingApps = applications?.filter((a) => a.status === "pending") ?? [];
+  const pendingApps = applications.filter((a) => a.status === "pending");
   const pendingProps = properties?.filter((p) => p.status === "pending") ?? [];
   const pendingStores = storefronts?.filter((s) => s.status === "pending") ?? [];
   const pendingProducts = products?.filter((p) => p.status === "pending") ?? [];
@@ -145,11 +155,17 @@ export default function AdminDashboardPage() {
         <TabsContent value="applications" className="mt-6">
           {loadingApps ? (
             <LoadingRows />
-          ) : applications && applications.length > 0 ? (
+          ) : applications.length > 0 ? (
             <div className="space-y-3">
               {applications.map((a) => (
                 <ApplicationRow key={a.$id} application={a} />
               ))}
+              <LoadMoreButton
+                hasMore={hasMoreApps}
+                loading={loadingMoreApps}
+                onLoadMore={loadMoreApps}
+                label="Load more applications"
+              />
             </div>
           ) : (
             <EmptyState
@@ -333,6 +349,13 @@ function ApplicationRow({
 }) {
   const action = useAdminAction();
   const [busy, setBusy] = useState<string | null>(null);
+  const applicationLocation = [
+    application.address,
+    application.town,
+    application.county,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const run = (
     type: "approveRole" | "rejectRole" | "suspendRole",
@@ -372,6 +395,47 @@ function ApplicationRow({
           <p className="break-all text-sm text-muted-foreground">
             {application.userEmail}
           </p>
+          {(application.phone ||
+            application.address ||
+            application.town ||
+            application.county) && (
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              {application.phone && (
+                <a
+                  href={`tel:${application.phone}`}
+                  className="flex w-fit items-center gap-1 hover:text-primary"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  {application.phone}
+                </a>
+              )}
+              {applicationLocation && (
+                <p className="flex items-start gap-1">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{applicationLocation}</span>
+                </p>
+              )}
+              {application.latitude && application.longitude && (
+                <a
+                  href={applicationMapHref(application)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Open in OpenStreetMap
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
+          {application.latitude && application.longitude ? (
+            <PropertyMapPreview
+              className="mt-3 h-56 w-full sm:h-64"
+              latitude={application.latitude}
+              longitude={application.longitude}
+              label={applicationLocation || application.userName}
+            />
+          ) : null}
           {application.message && (
             <p className="mt-1 break-words text-sm">"{application.message}"</p>
           )}
@@ -450,6 +514,22 @@ function ApplicationRow({
       </CardContent>
     </Card>
   );
+}
+
+function applicationMapHref(
+  application: import("@/types/models").RoleApplication,
+) {
+  if (application.latitude && application.longitude) {
+    return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+      application.latitude,
+    )}&mlon=${encodeURIComponent(application.longitude)}#map=16/${
+      application.latitude
+    }/${application.longitude}`;
+  }
+  const query = [application.address, application.town, application.county, "Kenya"]
+    .filter(Boolean)
+    .join(", ");
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }
 
 const propStatusVariant: Record<

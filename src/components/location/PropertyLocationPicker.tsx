@@ -15,10 +15,6 @@ import {
 import { cn } from "@/lib/utils";
 
 const DEFAULT_COORDS = { lng: 36.8219, lat: -1.2921 };
-const MAP_STYLES = {
-  light: "https://tiles.openfreemap.org/styles/bright",
-  dark: "https://tiles.openfreemap.org/styles/bright",
-};
 
 type Coordinates = {
   lng: number;
@@ -32,18 +28,27 @@ type LocationChange = {
 };
 
 export function PropertyLocationPicker({
+  id,
   latitude,
   longitude,
   searchHint,
   className,
+  size = "default",
+  defaultOpen,
   onChange,
 }: {
+  id?: string;
   latitude?: string;
   longitude?: string;
   searchHint?: string;
   className?: string;
+  /** `prominent` is used on role applications so the pin map is hard to miss. */
+  size?: "default" | "prominent";
+  defaultOpen?: boolean;
   onChange: (location: LocationChange) => void;
 }) {
+  const generatedId = React.useId();
+  const searchId = id ?? `location-search-${generatedId}`;
   const initial = parseCoordinates(latitude, longitude);
   const [marker, setMarker] = React.useState<Coordinates>(
     initial ?? DEFAULT_COORDS,
@@ -51,13 +56,21 @@ export function PropertyLocationPicker({
   const [hasPinned, setHasPinned] = React.useState(Boolean(initial));
   const [search, setSearch] = React.useState(searchHint ?? "");
   const [searching, setSearching] = React.useState(false);
+  const [mapOpen, setMapOpen] = React.useState(
+    Boolean(initial) || Boolean(defaultOpen) || size === "prominent",
+  );
   const [error, setError] = React.useState("");
+  const mapHeight =
+    size === "prominent"
+      ? "h-[min(70vh,520px)] min-h-[380px]"
+      : "h-[340px]";
 
   React.useEffect(() => {
     const parsed = parseCoordinates(latitude, longitude);
     if (!parsed) return;
     setMarker(parsed);
     setHasPinned(true);
+    setMapOpen(true);
   }, [latitude, longitude]);
 
   React.useEffect(() => {
@@ -110,6 +123,7 @@ export function PropertyLocationPicker({
 
       const coords = { lng: Number(result.lon), lat: Number(result.lat) };
       setSearch(result.display_name ?? query);
+      setMapOpen(true);
       commitLocation(coords, result.display_name);
     } catch (err) {
       setError((err as Error).message || "Could not search this location.");
@@ -121,10 +135,10 @@ export function PropertyLocationPicker({
   return (
     <div className={cn("space-y-3", className)}>
       <div className="space-y-2">
-        <Label htmlFor="location-search">Search and pin exact location</Label>
+        <Label htmlFor={searchId}>Search and pin exact location</Label>
         <div className="flex gap-2">
           <Input
-            id="location-search"
+            id={searchId}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => {
@@ -152,59 +166,91 @@ export function PropertyLocationPicker({
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
-      <div className="h-[340px] overflow-hidden rounded-md border bg-muted">
-        <Map
-          center={[marker.lng, marker.lat]}
-          zoom={hasPinned ? 15 : 11}
-          styles={MAP_STYLES}
+      {mapOpen ? (
+        <div
+          className={cn(
+            "overflow-hidden rounded-lg border-2 border-primary/30 bg-muted shadow-sm",
+            mapHeight,
+          )}
         >
-          <MapClickHandler onPick={commitLocation} />
-          <MapMoveTo coordinates={marker} zoom={hasPinned ? 15 : 11} />
-          <MapControls
-            showLocate
-            showFullscreen
-            onLocate={(coords) =>
-              commitLocation({ lng: coords.longitude, lat: coords.latitude })
-            }
-          />
-          <MapMarker
-            draggable
-            longitude={marker.lng}
-            latitude={marker.lat}
-            onDragEnd={commitLocation}
-          >
-            <MarkerContent>
-              <div className="cursor-move">
-                <MapPin
-                  className="fill-primary text-primary-foreground drop-shadow-md"
-                  size={34}
-                />
-              </div>
-            </MarkerContent>
-            <MarkerPopup>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Pinned location</p>
-                <p className="font-mono text-xs text-muted-foreground">
-                  {marker.lat.toFixed(6)}, {marker.lng.toFixed(6)}
-                </p>
-              </div>
-            </MarkerPopup>
-          </MapMarker>
-        </Map>
-      </div>
+          <Map center={[marker.lng, marker.lat]} zoom={hasPinned ? 15 : 11}>
+            <MapClickHandler onPick={commitLocation} />
+            <MapMoveTo coordinates={marker} zoom={hasPinned ? 15 : 11} />
+            <MapControls
+              showLocate
+              showFullscreen
+              onLocate={(coords) =>
+                commitLocation({ lng: coords.longitude, lat: coords.latitude })
+              }
+            />
+            <MapMarker
+              draggable
+              longitude={marker.lng}
+              latitude={marker.lat}
+              onDragEnd={commitLocation}
+            >
+              <MarkerContent>
+                <div className="cursor-move">
+                  <MapPin
+                    className="fill-primary text-primary-foreground drop-shadow-md"
+                    size={size === "prominent" ? 42 : 34}
+                  />
+                </div>
+              </MarkerContent>
+              <MarkerPopup>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Pinned location</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {marker.lat.toFixed(6)}, {marker.lng.toFixed(6)}
+                  </p>
+                </div>
+              </MarkerPopup>
+            </MapMarker>
+          </Map>
+        </div>
+      ) : (
+        <div className="grid min-h-[200px] place-items-center rounded-lg border-2 border-dashed border-primary/25 bg-primary/5 p-6 text-center">
+          <div className="space-y-3">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-md bg-primary/15 text-primary">
+              <MapPin className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Pin your exact location</p>
+              <p className="text-xs text-muted-foreground">
+                Search above or open the map — this is required for role review.
+              </p>
+            </div>
+            <Button type="button" onClick={() => setMapOpen(true)}>
+              <MapPin className="h-4 w-4" />
+              Open map
+            </Button>
+          </div>
+        </div>
+      )}
 
-      <div className="grid gap-3 rounded-md border bg-secondary/40 p-3 text-sm sm:grid-cols-2">
+      <div
+        className={cn(
+          "grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2",
+          hasPinned
+            ? "border-primary/30 bg-primary/5"
+            : "border-border bg-secondary/40",
+        )}
+      >
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             Latitude
           </p>
-          <p className="font-mono">{hasPinned ? marker.lat.toFixed(6) : "Not pinned"}</p>
+          <p className="font-mono font-medium">
+            {hasPinned ? marker.lat.toFixed(6) : "Not pinned"}
+          </p>
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             Longitude
           </p>
-          <p className="font-mono">{hasPinned ? marker.lng.toFixed(6) : "Not pinned"}</p>
+          <p className="font-mono font-medium">
+            {hasPinned ? marker.lng.toFixed(6) : "Not pinned"}
+          </p>
         </div>
       </div>
     </div>
@@ -226,11 +272,15 @@ export function PropertyMapPreview({
   if (!coords) return null;
 
   return (
-    <div className={cn("h-48 overflow-hidden rounded-md border bg-muted", className)}>
+    <div
+      className={cn(
+        "h-48 overflow-hidden rounded-lg border-2 border-primary/25 bg-muted shadow-sm",
+        className,
+      )}
+    >
       <Map
         center={[coords.lng, coords.lat]}
         zoom={15}
-        styles={MAP_STYLES}
         interactive={false}
       >
         <MapMarker longitude={coords.lng} latitude={coords.lat}>
@@ -293,8 +343,16 @@ function MapMoveTo({
 }
 
 function parseCoordinates(latitude?: string, longitude?: string) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
+  // Number("") === 0, so empty strings must be rejected or the picker
+  // falsely treats an unpinned location as 0°N, 0°E (Null Island).
+  if (typeof latitude !== "string" || typeof longitude !== "string") return null;
+  const latRaw = latitude.trim();
+  const lngRaw = longitude.trim();
+  if (!latRaw || !lngRaw) return null;
+
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
 }

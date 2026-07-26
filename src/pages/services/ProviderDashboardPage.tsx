@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { BadgeCheck, Briefcase, Inbox, Loader2, MapPin, ShieldCheck } from "lucide-react";
+import {
+  BadgeCheck,
+  Briefcase,
+  ExternalLink,
+  Inbox,
+  Loader2,
+  MapPin,
+  Phone,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -156,6 +165,8 @@ export default function ProviderDashboardPage() {
                       <p className="mt-3 text-sm">{r.description}</p>
                     )}
 
+                    <ServiceContactSummary request={r} />
+
                     {r.photoIds?.length > 0 && (
                       <div className="mt-3 flex gap-2 overflow-x-auto">
                         {r.photoIds.map((id) => (
@@ -212,8 +223,8 @@ export default function ProviderDashboardPage() {
             <div className="space-y-4">
               {jobs.map((r) => (
                 <Card key={r.$id}>
-                  <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
+                  <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold">{label(r.category)}</h3>
                         <Badge variant="secondary">
@@ -226,6 +237,7 @@ export default function ProviderDashboardPage() {
                       <p className="mt-1 text-sm font-medium text-primary">
                         {formatKES(r.quotedAmount ?? r.estimatedMax ?? 0)}
                       </p>
+                      <ServiceContactSummary request={r} />
                     </div>
                     <div className="flex gap-2">
                       {r.status === "accepted" && (
@@ -266,6 +278,59 @@ export default function ProviderDashboardPage() {
       </Tabs>
     </div>
   );
+}
+
+function ServiceContactSummary({ request }: { request: ServiceRequest }) {
+  const location = [request.address, request.town, request.county]
+    .filter(Boolean)
+    .join(", ");
+
+  if (!request.contactPhone && !location) return null;
+
+  return (
+    <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+      {request.contactPhone && (
+        <a
+          href={`tel:${request.contactPhone}`}
+          className="flex w-fit items-center gap-1 hover:text-primary"
+        >
+          <Phone className="h-3.5 w-3.5" />
+          {request.contactPhone}
+        </a>
+      )}
+      {location && (
+        <p className="flex items-start gap-1">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{location}</span>
+        </p>
+      )}
+      {request.latitude && request.longitude && (
+        <a
+          href={serviceMapHref(request)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          Open pinned location
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function serviceMapHref(request: ServiceRequest) {
+  if (request.latitude && request.longitude) {
+    return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+      request.latitude,
+    )}&mlon=${encodeURIComponent(request.longitude)}#map=16/${
+      request.latitude
+    }/${request.longitude}`;
+  }
+  const query = [request.address, request.town, request.county, "Kenya"]
+    .filter(Boolean)
+    .join(", ");
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }
 
 function ProviderProfilePanel({

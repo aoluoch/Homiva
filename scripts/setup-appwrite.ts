@@ -187,6 +187,16 @@ async function createTable(
       rowSecurity: true,
     }),
   );
+  // Keep permissions in sync when the table already exists.
+  await safe(`table perms ${tableId}`, () =>
+    tablesDB.updateTable({
+      databaseId: DB,
+      tableId,
+      name,
+      permissions,
+      rowSecurity: true,
+    }),
+  );
 }
 
 async function main() {
@@ -391,6 +401,12 @@ async function main() {
     "pending",
   );
   await str("role_applications", "message", 2000);
+  await str("role_applications", "phone", 32);
+  await str("role_applications", "county", 64);
+  await str("role_applications", "town", 128);
+  await str("role_applications", "address", 512);
+  await str("role_applications", "latitude", 32);
+  await str("role_applications", "longitude", 32);
   await strArr("role_applications", "documentIds");
   await strArr("role_applications", "documentLabels");
   await str("role_applications", "reviewedBy", 64);
@@ -482,6 +498,9 @@ async function main() {
   await strArr("service_requests", "photoIds");
   await str("service_requests", "county", 64);
   await str("service_requests", "town", 128);
+  await str("service_requests", "address", 512);
+  await str("service_requests", "latitude", 32);
+  await str("service_requests", "longitude", 32);
   await str("service_requests", "contactPhone", 32);
   await dt("service_requests", "scheduledDate");
   await int("service_requests", "estimatedMin", false, 0);

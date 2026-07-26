@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { ProductCard } from "@/components/marketplace/ProductCard";
@@ -35,7 +36,14 @@ export default function MarketplacePage() {
     [category, q, condition, sort],
   );
 
-  const { data, isLoading } = useProducts(filters);
+  const {
+    items: data,
+    total,
+    isLoading,
+    hasMore,
+    loadMore,
+    isFetchingNextPage,
+  } = useProducts(filters);
 
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -120,12 +128,25 @@ export default function MarketplacePage() {
             <Skeleton key={i} className="aspect-[4/3] w-full rounded-xl" />
           ))}
         </div>
-      ) : data && data.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {data.map((p) => (
-            <ProductCard key={p.$id} product={p} />
-          ))}
-        </div>
+      ) : data.length > 0 ? (
+        <>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Showing {data.length}
+            {total > data.length ? ` of ${total}` : ""} product
+            {total === 1 ? "" : "s"}
+          </p>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {data.map((p) => (
+              <ProductCard key={p.$id} product={p} />
+            ))}
+          </div>
+          <LoadMoreButton
+            hasMore={hasMore}
+            loading={isFetchingNextPage}
+            onLoadMore={loadMore}
+            label="Load more products"
+          />
+        </>
       ) : (
         <EmptyState
           icon={PackageSearch}

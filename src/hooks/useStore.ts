@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
 import { appwriteConfig, TABLES } from "@/lib/config";
+import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
 import type { Order, Product, Storefront } from "@/types/models";
@@ -129,23 +130,20 @@ export function useUpdateStorefront() {
   });
 }
 
-/** All approved storefronts (public directory). */
+/** Paginated approved storefronts (public directory). */
 export function useStorefronts(category?: string) {
-  return useQuery({
+  return useAppwriteInfiniteRows<Storefront>({
     queryKey: ["storefronts", category],
-    queryFn: async () => {
+    tableId: TABLES.storefronts,
+    pageSize: PAGE_SIZE.browse,
+    buildQueries: () => {
       const queries = [
         Query.equal("status", "approved"),
         Query.orderDesc("featured"),
-        Query.limit(60),
+        Query.orderDesc("$createdAt"),
       ];
       if (category) queries.push(Query.equal("category", category));
-      const res = await tablesDB.listRows({
-        databaseId: DB,
-        tableId: TABLES.storefronts,
-        queries,
-      });
-      return res.rows as unknown as Storefront[];
+      return queries;
     },
   });
 }
