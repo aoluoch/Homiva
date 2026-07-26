@@ -41,7 +41,7 @@ export function useUnreadCount() {
         queries: [
           Query.equal("userId", user!.$id),
           Query.equal("read", false),
-          Query.limit(100),
+          Query.limit(1),
         ],
       });
       return res.total;

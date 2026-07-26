@@ -40,6 +40,12 @@ export interface RoleApplication extends BaseRow {
   roleLabel: string;
   status: ApplicationStatus;
   message?: string;
+  phone?: string;
+  county?: string;
+  town?: string;
+  address?: string;
+  latitude?: string;
+  longitude?: string;
   documentIds?: string[];
   documentLabels?: string[];
   reviewedBy?: string;
@@ -142,6 +148,9 @@ export interface ServiceRequest extends BaseRow {
   photoIds: string[];
   county?: string;
   town?: string;
+  address?: string;
+  latitude?: string;
+  longitude?: string;
   contactPhone?: string;
   scheduledDate?: string;
   estimatedMin?: number;

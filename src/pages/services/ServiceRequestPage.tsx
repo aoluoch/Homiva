@@ -34,6 +34,7 @@ import { estimatePrice } from "@/lib/servicePricing";
 import { cn, formatKES } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useCreateServiceRequest } from "@/hooks/useServices";
+import { PropertyLocationPicker } from "@/components/location/PropertyLocationPicker";
 
 const STEPS = [
   "Service",
@@ -61,6 +62,9 @@ export default function ServiceRequestPage() {
   const [urgency, setUrgency] = useState<ServiceUrgencyKey | "">("");
   const [county, setCounty] = useState("");
   const [town, setTown] = useState("");
+  const [address, setAddress] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [phone, setPhone] = useState("");
 
   const activeCategory = SERVICE_CATEGORIES.find((c) => c.key === category);
@@ -106,6 +110,19 @@ export default function ServiceRequestPage() {
       return;
     }
     if (!estimate) return;
+    if (
+      !phone.trim() ||
+      !county.trim() ||
+      !town.trim() ||
+      !address.trim() ||
+      !latitude.trim() ||
+      !longitude.trim()
+    ) {
+      toast.error(
+        "Add a contact phone, full address and pinned location before submitting.",
+      );
+      return;
+    }
     try {
       await create.mutateAsync({
         values: {
@@ -117,6 +134,9 @@ export default function ServiceRequestPage() {
           urgency,
           county,
           town,
+          address,
+          latitude,
+          longitude,
           contactPhone: phone,
           estimatedMin: estimate.min,
           estimatedMax: estimate.max,
@@ -427,6 +447,7 @@ export default function ServiceRequestPage() {
                   onChange={(e) => setTown(e.target.value)}
                   className="mt-1"
                   placeholder="e.g. Kilimani"
+                  required
                 />
               </div>
               <div className="sm:col-span-2">
@@ -436,9 +457,35 @@ export default function ServiceRequestPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="mt-1"
-                  placeholder="07xx xxx xxx"
+                  placeholder="+2547..."
+                  required
                 />
               </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="address">Full address</Label>
+                <Input
+                  id="address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="mt-1"
+                  placeholder="Street, building, landmark"
+                  required
+                />
+              </div>
+              <PropertyLocationPicker
+                id="service-location"
+                className="sm:col-span-2"
+                latitude={latitude}
+                longitude={longitude}
+                searchHint={[address, town, county, "Kenya"]
+                  .filter(Boolean)
+                  .join(", ")}
+                onChange={({ latitude, longitude, formattedAddress }) => {
+                  setLatitude(latitude);
+                  setLongitude(longitude);
+                  if (formattedAddress) setAddress(formattedAddress);
+                }}
+              />
             </div>
           </>
         )}
@@ -457,7 +504,19 @@ export default function ServiceRequestPage() {
               Next <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={submit} disabled={create.isPending || !estimate}>
+            <Button
+              onClick={submit}
+              disabled={
+                create.isPending ||
+                !estimate ||
+                !phone.trim() ||
+                !county.trim() ||
+                !town.trim() ||
+                !address.trim() ||
+                !latitude.trim() ||
+                !longitude.trim()
+              }
+            >
               {create.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin" />
               )}

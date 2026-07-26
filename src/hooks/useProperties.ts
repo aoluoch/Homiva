@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Query, tablesDB } from "@/lib/appwrite";
 import { appwriteConfig, TABLES } from "@/lib/config";
+import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type { ListingType, Property } from "@/types/models";
 
 export interface PropertyFilters {
@@ -13,14 +14,16 @@ export interface PropertyFilters {
   sort?: "newest" | "price_asc" | "price_desc";
 }
 
-function buildQueries(filters: PropertyFilters) {
-  const q = [Query.equal("status", "approved"), Query.limit(60)];
+function filterQueries(filters: PropertyFilters) {
+  const q: string[] = [Query.equal("status", "approved")];
   if (filters.listingType && filters.listingType !== "all") {
     q.push(Query.equal("listingType", filters.listingType));
   }
   if (filters.county) q.push(Query.equal("county", filters.county));
-  if (filters.bedrooms) q.push(Query.greaterThanEqual("bedrooms", filters.bedrooms));
-  if (filters.minPrice) q.push(Query.greaterThanEqual("price", filters.minPrice));
+  if (filters.bedrooms)
+    q.push(Query.greaterThanEqual("bedrooms", filters.bedrooms));
+  if (filters.minPrice)
+    q.push(Query.greaterThanEqual("price", filters.minPrice));
   if (filters.maxPrice) q.push(Query.lessThanEqual("price", filters.maxPrice));
   if (filters.search) q.push(Query.search("title", filters.search));
   switch (filters.sort) {
@@ -36,17 +39,13 @@ function buildQueries(filters: PropertyFilters) {
   return q;
 }
 
+/** Paginated public property browse (cursor-based). */
 export function useProperties(filters: PropertyFilters) {
-  return useQuery({
+  return useAppwriteInfiniteRows<Property>({
     queryKey: ["properties", filters],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
-        databaseId: appwriteConfig.databaseId,
-        tableId: TABLES.properties,
-        queries: buildQueries(filters),
-      });
-      return res.rows as unknown as Property[];
-    },
+    tableId: TABLES.properties,
+    pageSize: PAGE_SIZE.browse,
+    buildQueries: () => filterQueries(filters),
   });
 }
 
@@ -84,20 +83,14 @@ export function useProperty(id?: string) {
 }
 
 export function useMyProperties(ownerId?: string) {
-  return useQuery({
+  return useAppwriteInfiniteRows<Property>({
     enabled: !!ownerId,
     queryKey: ["my-properties", ownerId],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
-        databaseId: appwriteConfig.databaseId,
-        tableId: TABLES.properties,
-        queries: [
-          Query.equal("ownerId", ownerId!),
-          Query.orderDesc("$createdAt"),
-          Query.limit(100),
-        ],
-      });
-      return res.rows as unknown as Property[];
-    },
+    tableId: TABLES.properties,
+    pageSize: PAGE_SIZE.browse,
+    buildQueries: () => [
+      Query.equal("ownerId", ownerId!),
+      Query.orderDesc("$createdAt"),
+    ],
   });
 }

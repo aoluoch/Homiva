@@ -94,20 +94,18 @@ The admin dashboard requires membership in the `admins` team.
 Role/listing approvals run through the `homiva-admin` Appwrite Function (it
 needs an API key to manage team memberships).
 
-1. In the Appwrite console, create a Function with ID **`homiva-admin`**,
-   runtime **Node 18+**, entry point `src/main.js`.
-2. Deploy the code in [`functions/homiva-admin`](functions/homiva-admin).
-   Easiest via the [Appwrite CLI](https://appwrite.io/docs/tooling/command-line):
+1. Make sure `.env` has `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID` and an
+   `APPWRITE_API_KEY` with the scopes listed above.
+2. Create/update and deploy the function:
    ```bash
-   cd functions/homiva-admin
-   appwrite deploy function
+   npm run deploy:admin
    ```
-   or connect the repo / upload the folder from the console.
-3. Set the function's **Execute** permission to `Users` (any logged-in user;
-   the function itself enforces that the caller is an admin).
-4. Provide an API key to the function - either enable a **dynamic API key**
-   (recommended) or set an `APPWRITE_API_KEY` environment variable on the
-   function with the scopes listed above.
+   The script creates the **`homiva-admin`** function if it is missing, sets
+   execute permission to `Users`, deploys [`functions/homiva-admin`](functions/homiva-admin),
+   and enables the dynamic execution API key scopes needed by the function.
+3. If you use a custom function ID in Appwrite, set
+   `VITE_APPWRITE_FUNCTION_ADMIN` to that exact ID and rebuild/redeploy the
+   frontend.
 
 Until the function is deployed, browsing, payments, listings and applications
 all work; only the admin approve/reject/suspend actions require it.

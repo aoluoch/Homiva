@@ -15,6 +15,15 @@ type RoleApplicationDocument = {
   file: File;
 };
 
+type RoleApplicationLocation = {
+  phone: string;
+  county: string;
+  town: string;
+  address: string;
+  latitude: string;
+  longitude: string;
+};
+
 const ACCEPTED_DOCUMENT_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -76,13 +85,35 @@ export function useApplyForRole() {
       roleLabel,
       message,
       documents,
+      location,
     }: {
       role: string;
       roleLabel: string;
       message?: string;
       documents?: RoleApplicationDocument[];
+      location: RoleApplicationLocation;
     }) => {
       if (!user) throw new Error("You must be logged in to apply.");
+      const contact = {
+        phone: location.phone.trim(),
+        county: location.county.trim(),
+        town: location.town.trim(),
+        address: location.address.trim(),
+        latitude: location.latitude.trim(),
+        longitude: location.longitude.trim(),
+      };
+      if (
+        !contact.phone ||
+        !contact.county ||
+        !contact.town ||
+        !contact.address ||
+        !contact.latitude ||
+        !contact.longitude
+      ) {
+        throw new Error(
+          "Contact phone, address, county, town and pinned location are required.",
+        );
+      }
       const requiredDocuments = ROLE_DOCUMENT_REQUIREMENTS[role] ?? [
         "National ID or passport",
       ];
@@ -136,6 +167,12 @@ export function useApplyForRole() {
           roleLabel,
           status: "pending",
           message: message ?? "",
+          phone: contact.phone,
+          county: contact.county,
+          town: contact.town,
+          address: contact.address,
+          latitude: contact.latitude,
+          longitude: contact.longitude,
           documentIds,
           documentLabels: submittedDocuments.map((doc) => doc.label),
         },

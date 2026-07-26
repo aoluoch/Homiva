@@ -18,12 +18,23 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PropertyLocationPicker } from "@/components/location/PropertyLocationPicker";
 import { useAuth } from "@/context/AuthContext";
 import {
   APPLICABLE_ROLES,
+  KENYA_COUNTIES,
   ROLE_DOCUMENT_REQUIREMENTS,
   TEAMS,
 } from "@/lib/config";
@@ -44,16 +55,43 @@ const statusStyles: Record<
   suspended: { variant: "secondary", label: "Suspended" },
 };
 
+type RoleContactDetails = {
+  phone?: string;
+  county?: string;
+  town?: string;
+  address?: string;
+  latitude?: string;
+  longitude?: string;
+};
+
 export default function ProfilePage() {
   const { user, profile, roles, isAdmin } = useAuth();
   const { data: applications } = useMyApplications();
   const apply = useApplyForRole();
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [contactDetails, setContactDetails] = useState<
+    Record<string, RoleContactDetails>
+  >({});
   const [documentFiles, setDocumentFiles] = useState<
     Record<string, Record<string, File | undefined>>
   >({});
 
   const handleApply = (role: string, roleLabel: string) => {
+    const contact = getContactForRole(role);
+    const missingContact = [
+      contact.phone,
+      contact.county,
+      contact.town,
+      contact.address,
+      contact.latitude,
+      contact.longitude,
+    ].some((value) => !value.trim());
+    if (missingContact) {
+      toast.error(
+        "Add a contact phone, full address and pinned location before applying.",
+      );
+      return;
+    }
     const requiredDocuments = ROLE_DOCUMENT_REQUIREMENTS[role] ?? [
       "National ID or passport",
     ];
@@ -69,6 +107,7 @@ export default function ProfilePage() {
         role,
         roleLabel,
         message: messages[role],
+        location: contact,
         documents: requiredDocuments.map((label) => ({
           label,
           file: uploadedForRole[label]!,
@@ -78,11 +117,35 @@ export default function ProfilePage() {
         onSuccess: () => {
           toast.success("Application submitted for review.");
           setMessages((m) => ({ ...m, [role]: "" }));
+          setContactDetails((details) => ({ ...details, [role]: {} }));
           setDocumentFiles((files) => ({ ...files, [role]: {} }));
         },
         onError: (err) => toast.error((err as Error).message),
       },
     );
+  };
+
+  const setContact = (
+    role: string,
+    field: keyof RoleContactDetails,
+    value: string,
+  ) => {
+    setContactDetails((current) => ({
+      ...current,
+      [role]: { ...(current[role] ?? {}), [field]: value },
+    }));
+  };
+
+  const getContactForRole = (role: string) => {
+    const details = contactDetails[role] ?? {};
+    return {
+      phone: details.phone ?? profile?.phone ?? "",
+      county: details.county ?? "",
+      town: details.town ?? "",
+      address: details.address ?? "",
+      latitude: details.latitude ?? "",
+      longitude: details.longitude ?? "",
+    };
   };
 
   const activeRoleLabels = [
@@ -134,6 +197,15 @@ export default function ProfilePage() {
           const pending = latest?.status === "pending";
           const requiredDocuments = ROLE_DOCUMENT_REQUIREMENTS[role.team] ?? [];
           const filesForRole = documentFiles[role.team] ?? {};
+          const contact = getContactForRole(role.team);
+          const missingContact = [
+            contact.phone,
+            contact.county,
+            contact.town,
+            contact.address,
+            contact.latitude,
+            contact.longitude,
+          ].some((value) => !value.trim());
           const missingDocuments = requiredDocuments.some(
             (label) => !filesForRole[label],
           );
@@ -173,6 +245,104 @@ export default function ProfilePage() {
                       }
                       rows={2}
                     />
+                    <div className="space-y-3 rounded-md border bg-secondary/30 p-3">
+                      <p className="text-sm font-medium">
+                        Verification contact and physical location
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor={`role-phone-${role.key}`}>
+                            Phone number
+                          </Label>
+                          <Input
+                            id={`role-phone-${role.key}`}
+                            value={contact.phone}
+                            onChange={(e) =>
+                              setContact(role.team, "phone", e.target.value)
+                            }
+                            placeholder="+2547..."
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>County</Label>
+                          <Select
+                            value={contact.county}
+                            onValueChange={(value) =>
+                              setContact(role.team, "county", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select county" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {KENYA_COUNTIES.map((county) => (
+                                <SelectItem key={county} value={county}>
+                                  {county}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`role-town-${role.key}`}>
+                            Town / Area
+                          </Label>
+                          <Input
+                            id={`role-town-${role.key}`}
+                            value={contact.town}
+                            onChange={(e) =>
+                              setContact(role.team, "town", e.target.value)
+                            }
+                            placeholder="Kilimani"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`role-address-${role.key}`}>
+                            Full address
+                          </Label>
+                          <Input
+                            id={`role-address-${role.key}`}
+                            value={contact.address}
+                            onChange={(e) =>
+                              setContact(role.team, "address", e.target.value)
+                            }
+                            placeholder="Street, building, landmark"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <PropertyLocationPicker
+                        id={`role-location-${role.key}`}
+                        size="prominent"
+                        defaultOpen
+                        latitude={contact.latitude}
+                        longitude={contact.longitude}
+                        searchHint={[
+                          contact.address,
+                          contact.town,
+                          contact.county,
+                          "Kenya",
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                        onChange={({ latitude, longitude, formattedAddress }) =>
+                          setContactDetails((current) => ({
+                            ...current,
+                            [role.team]: {
+                              ...(current[role.team] ?? {}),
+                              latitude,
+                              longitude,
+                              address:
+                                formattedAddress ??
+                                current[role.team]?.address ??
+                                "",
+                            },
+                          }))
+                        }
+                      />
+                    </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium">
                         Required verification documents
@@ -248,7 +418,7 @@ export default function ProfilePage() {
                     <Button
                       size="sm"
                       onClick={() => handleApply(role.team, role.label)}
-                      disabled={apply.isPending || missingDocuments}
+                      disabled={apply.isPending || missingDocuments || missingContact}
                     >
                       Apply for role
                     </Button>

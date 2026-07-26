@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
+    "deploy:admin": "tsx scripts/deploy-admin-function.ts",
     "deploy:payments": "tsx scripts/deploy-payments-function.ts",
     "setup:appwrite": "tsx scripts/setup-appwrite.ts",
     "seed": "tsx scripts/seed.ts"

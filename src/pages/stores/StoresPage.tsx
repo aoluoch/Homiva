@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { BadgeCheck, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { filePreview } from "@/lib/appwrite";
@@ -18,7 +19,13 @@ function logoUrl(fid?: string) {
 }
 
 export default function StoresPage() {
-  const { data, isLoading } = useStorefronts();
+  const {
+    items: data,
+    isLoading,
+    hasMore,
+    loadMore,
+    isFetchingNextPage,
+  } = useStorefronts();
 
   return (
     <div className="container py-8">
@@ -35,45 +42,53 @@ export default function StoresPage() {
             <Skeleton key={i} className="h-40 w-full rounded-xl" />
           ))}
         </div>
-      ) : data && data.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((s) => {
-            const logo = logoUrl(s.logoFileId);
-            return (
-              <Link key={s.$id} to={`/stores/${s.$id}`}>
-                <Card className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
-                  <CardContent className="flex gap-4 p-5">
-                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-primary/10 text-primary">
-                      {logo ? (
-                        <img
-                          src={logo}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Store className="h-7 w-7" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="truncate font-semibold">{s.name}</h3>
-                        {s.verified && (
-                          <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />
+      ) : data.length > 0 ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {data.map((s) => {
+              const logo = logoUrl(s.logoFileId);
+              return (
+                <Link key={s.$id} to={`/stores/${s.$id}`}>
+                  <Card className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
+                    <CardContent className="flex gap-4 p-5">
+                      <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-primary/10 text-primary">
+                        {logo ? (
+                          <img
+                            src={logo}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Store className="h-7 w-7" />
                         )}
                       </div>
-                      <Badge variant="secondary" className="mt-1">
-                        {s.category}
-                      </Badge>
-                      <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-                        {s.description}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="truncate font-semibold">{s.name}</h3>
+                          {s.verified && (
+                            <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="mt-1">
+                          {s.category}
+                        </Badge>
+                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                          {s.description}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+          <LoadMoreButton
+            hasMore={hasMore}
+            loading={isFetchingNextPage}
+            onLoadMore={loadMore}
+            label="Load more stores"
+          />
+        </>
       ) : (
         <EmptyState
           icon={Store}

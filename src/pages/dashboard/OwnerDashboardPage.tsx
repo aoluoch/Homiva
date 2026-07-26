@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { EmptyState } from "@/components/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext";
@@ -30,7 +31,14 @@ const statusVariant: Record<
 
 export default function OwnerDashboardPage() {
   const { user } = useAuth();
-  const { data: properties, isLoading } = useMyProperties(user?.$id);
+  const {
+    items: properties,
+    total,
+    isLoading,
+    hasMore,
+    loadMore,
+    isFetchingNextPage,
+  } = useMyProperties(user?.$id);
   const del = useDeleteProperty();
 
   const handleDelete = (id: string, title: string) => {
@@ -42,9 +50,9 @@ export default function OwnerDashboardPage() {
   };
 
   const stats = {
-    total: properties?.length ?? 0,
-    approved: properties?.filter((p) => p.status === "approved").length ?? 0,
-    pending: properties?.filter((p) => p.status === "pending").length ?? 0,
+    total: total || properties.length,
+    approved: properties.filter((p) => p.status === "approved").length,
+    pending: properties.filter((p) => p.status === "pending").length,
   };
 
   return (
@@ -75,7 +83,7 @@ export default function OwnerDashboardPage() {
             <Skeleton key={i} className="h-24 w-full rounded-xl" />
           ))}
         </div>
-      ) : properties && properties.length > 0 ? (
+      ) : properties.length > 0 ? (
         <div className="space-y-3">
           {properties.map((p) => (
             <Card key={p.$id}>
@@ -123,6 +131,12 @@ export default function OwnerDashboardPage() {
               </CardContent>
             </Card>
           ))}
+          <LoadMoreButton
+            hasMore={hasMore}
+            loading={isFetchingNextPage}
+            onLoadMore={loadMore}
+            label="Load more listings"
+          />
         </div>
       ) : (
         <EmptyState

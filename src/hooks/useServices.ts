@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES } from "@/lib/config";
+import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
 import type { ServiceProvider, ServiceRequest } from "@/types/models";
@@ -17,6 +17,9 @@ export interface ServiceRequestInput {
   urgency?: string;
   county?: string;
   town?: string;
+  address?: string;
+  latitude?: string;
+  longitude?: string;
   contactPhone?: string;
   scheduledDate?: string;
   estimatedMin: number;
@@ -59,6 +62,26 @@ export function useCreateServiceRequest() {
       files: File[];
     }) => {
       if (!user) throw new Error("You must be logged in.");
+      const contact = {
+        contactPhone: values.contactPhone?.trim() ?? "",
+        county: values.county?.trim() ?? "",
+        town: values.town?.trim() ?? "",
+        address: values.address?.trim() ?? "",
+        latitude: values.latitude?.trim() ?? "",
+        longitude: values.longitude?.trim() ?? "",
+      };
+      if (
+        !contact.contactPhone ||
+        !contact.county ||
+        !contact.town ||
+        !contact.address ||
+        !contact.latitude ||
+        !contact.longitude
+      ) {
+        throw new Error(
+          "Contact phone, address, county, town and pinned location are required.",
+        );
+      }
       const photoIds = files.length ? await uploadServicePhotos(files) : [];
 
       return tablesDB.createRow({
@@ -67,6 +90,7 @@ export function useCreateServiceRequest() {
         rowId: ID.unique(),
         data: {
           ...values,
+          ...contact,
           userId: user.$id,
           userName: profile?.name ?? user.name,
           photoIds,
@@ -76,6 +100,9 @@ export function useCreateServiceRequest() {
           Permission.read(Role.user(user.$id)),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
+          // Providers need row-level access to discover and accept open jobs.
+          Permission.read(Role.team(TEAMS.providers)),
+          Permission.update(Role.team(TEAMS.providers)),
         ],
       }) as unknown as ServiceRequest;
     },
