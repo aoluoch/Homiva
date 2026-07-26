@@ -8,6 +8,7 @@ export interface BaseRow {
 
 export type ListingType = "sale" | "rent" | "airbnb";
 export type PropertyStatus = "draft" | "pending" | "approved" | "rejected";
+export type LocationVerificationStatus = "pending" | "verified" | "rejected";
 export type ApplicationStatus =
   | "pending"
   | "approved"
@@ -69,6 +70,10 @@ export interface Property extends BaseRow {
   coverImageId?: string;
   imageIds: string[];
   status: PropertyStatus;
+  locationVerificationStatus?: LocationVerificationStatus;
+  locationVerifiedAt?: string;
+  locationVerifiedBy?: string;
+  locationVerificationNote?: string;
   ownerId: string;
   ownerName: string;
   ownerRole: string;
@@ -128,9 +133,10 @@ export interface Payment extends BaseRow {
 // --- Phase 2/3 tables (schema provisioned, UI added later) ---
 
 export type ServiceStatus =
-  | "pending"
-  | "matched"
-  | "accepted"
+  | "requested"
+  | "reviewed"
+  | "quoted"
+  | "scheduled"
   | "in_progress"
   | "completed"
   | "paid"
@@ -156,8 +162,8 @@ export interface ServiceRequest extends BaseRow {
   estimatedMin?: number;
   estimatedMax?: number;
   status: ServiceStatus | string;
-  providerId?: string;
-  providerName?: string;
+  assignedTo?: string;
+  adminNote?: string;
   quotedAmount?: number;
   emergency: boolean;
   paymentRef?: string;
@@ -203,7 +209,13 @@ export interface Invoice extends BaseRow {
 export interface Review extends BaseRow {
   userId: string;
   userName: string;
-  targetType: "property" | "provider" | "service" | "product" | "storefront";
+  targetType:
+    | "property"
+    | "provider"
+    | "service"
+    | "product"
+    | "storefront"
+    | "partner_company";
   targetId: string;
   rating: number;
   comment?: string;
@@ -254,6 +266,40 @@ export interface Storefront extends BaseRow {
   rating?: number;
 }
 
+export type PartnerCategory =
+  | "movers"
+  | "cleaning_company"
+  | "interior_design_decor";
+
+export interface PartnerCompany extends BaseRow {
+  ownerId: string;
+  role: string;
+  name: string;
+  description: string;
+  category: PartnerCategory;
+  logoFileId?: string;
+  bannerFileId?: string;
+  phone?: string;
+  email?: string;
+  county?: string;
+  town?: string;
+  status: "pending" | "approved" | "rejected" | "suspended";
+  verified: boolean;
+  featured: boolean;
+  plan: string;
+  subscriptionStatus: SubscriptionStatus;
+  subscriptionExpiry?: string;
+  rating?: number;
+}
+
+export interface PartnerPortfolioImage extends BaseRow {
+  partnerCompanyId: string;
+  ownerId: string;
+  fileId: string;
+  caption?: string;
+  order: number;
+}
+
 export type ProductStatus = "pending" | "approved" | "rejected";
 
 export interface Product extends BaseRow {
@@ -289,15 +335,27 @@ export interface Order extends BaseRow {
   productTitle: string;
   quantity: number;
   amount: number;
+  deliveryFee?: number;
+  subtotal?: number;
+  orderGroupId?: string;
   status: OrderStatus;
   phone?: string;
   address?: string;
+  secureAddress?: string;
   paymentRef?: string;
+}
+
+export interface AppSetting extends BaseRow {
+  key: string;
+  value: string;
+  label?: string;
 }
 
 export interface Subscription extends BaseRow {
   userId: string;
   storefrontId?: string;
+  targetType?: "partner_company" | "storefront";
+  targetId?: string;
   plan: string;
   amount: number;
   status: SubscriptionStatus;

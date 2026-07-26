@@ -217,12 +217,12 @@ export default function RegisterPage() {
               One key for the whole home
             </p>
             <h1 className="mt-4 max-w-xl text-5xl font-black leading-[1.02] text-foreground">
-              Buy, host, book services and run a storefront from one profile.
+              Buy, host, book services and manage approved partner profiles from one account.
             </h1>
             <div className="mt-8 grid max-w-2xl gap-3">
               {[
                 "Save properties and compare shortlists.",
-                "Apply for owner, agent, provider or store roles.",
+                "Apply for owner, agent or partner company roles.",
                 "Track bookings, requests, messages and orders.",
               ].map((item) => (
                 <div

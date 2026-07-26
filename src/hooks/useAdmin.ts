@@ -7,6 +7,7 @@ import type {
   AuditLog,
   Dispute,
   MortgageEnquiry,
+  PartnerCompany,
   Product,
   Profile,
   Property,
@@ -103,6 +104,21 @@ export function usePendingProducts() {
   });
 }
 
+/** Partner company approval queue and directory for admins. */
+export function useAdminPartnerCompanies() {
+  return useQuery({
+    queryKey: ["admin", "partner-companies"],
+    queryFn: async () => {
+      const res = await tablesDB.listRows({
+        databaseId: appwriteConfig.databaseId,
+        tableId: TABLES.partnerCompanies,
+        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
+      });
+      return res.rows as unknown as PartnerCompany[];
+    },
+  });
+}
+
 interface AdminActionPayload {
   action:
     | "approveRole"
@@ -110,8 +126,15 @@ interface AdminActionPayload {
     | "suspendRole"
     | "approveProperty"
     | "rejectProperty"
+    | "verifyPropertyLocation"
+    | "rejectPropertyLocation"
     | "verifyProvider"
     | "unverifyProvider"
+    | "approvePartnerCompany"
+    | "rejectPartnerCompany"
+    | "suspendPartnerCompany"
+    | "featurePartnerCompany"
+    | "unfeaturePartnerCompany"
     | "approveStorefront"
     | "rejectStorefront"
     | "verifyStorefront"
@@ -120,6 +143,7 @@ interface AdminActionPayload {
   applicationId?: string;
   propertyId?: string;
   providerId?: string;
+  partnerCompanyId?: string;
   storefrontId?: string;
   productId?: string;
   note?: string;
@@ -163,6 +187,9 @@ export function useAdminAction() {
       qc.invalidateQueries({ queryKey: ["admin"] });
       qc.invalidateQueries({ queryKey: ["properties"] });
       qc.invalidateQueries({ queryKey: ["storefronts"] });
+      qc.invalidateQueries({ queryKey: ["partner-companies"] });
+      qc.invalidateQueries({ queryKey: ["my-partner-company"] });
+      qc.invalidateQueries({ queryKey: ["admin", "partner-companies"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["admin", "service-providers"] });
       qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
@@ -326,6 +353,8 @@ export interface AdminStats {
   propertiesPending: number;
   storefronts: number;
   storefrontsApproved: number;
+  partnerCompanies: number;
+  partnerCompaniesPublished: number;
   products: number;
   bookings: number;
   bookingsGmv: number;
@@ -384,6 +413,8 @@ export function useAdminStats() {
         propertiesPending,
         storefronts,
         storefrontsApproved,
+        partnerCompanies,
+        partnerCompaniesPublished,
         products,
         openDisputes,
         bookingsMeta,
@@ -397,6 +428,11 @@ export function useAdminStats() {
         countOf(TABLES.properties, [Query.equal("status", "pending")]),
         countOf(TABLES.storefronts),
         countOf(TABLES.storefronts, [Query.equal("status", "approved")]),
+        countOf(TABLES.partnerCompanies),
+        countOf(TABLES.partnerCompanies, [
+          Query.equal("status", "approved"),
+          Query.equal("subscriptionStatus", "active"),
+        ]),
         countOf(TABLES.products),
         countOf(TABLES.disputes, [
           Query.equal("status", ["open", "investigating"]),
@@ -418,6 +454,8 @@ export function useAdminStats() {
         propertiesPending,
         storefronts,
         storefrontsApproved,
+        partnerCompanies,
+        partnerCompaniesPublished,
         products,
         bookings: bookingsMeta.totalRows,
         bookingsGmv: bookingsMeta.sum,

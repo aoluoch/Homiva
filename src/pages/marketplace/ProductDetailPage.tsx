@@ -1,39 +1,26 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, MapPin, Minus, Plus, Store } from "lucide-react";
+import { ArrowLeft, MapPin, Minus, Plus, ShoppingCart, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { filePreview } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { formatKES } from "@/lib/utils";
-import { useAuth } from "@/context/AuthContext";
-import { useBuyProduct, useProduct } from "@/hooks/useMarketplace";
+import { useCart } from "@/context/CartContext";
+import { useProduct } from "@/hooks/useMarketplace";
 import { PRODUCT_PLACEHOLDER } from "@/components/marketplace/ProductCard";
 import { ReviewSection } from "@/components/reviews/ReviewSection";
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { data: product, isLoading } = useProduct(id);
-  const buy = useBuyProduct();
+  const { addProduct } = useCart();
 
   const [active, setActive] = useState(0);
-  const [open, setOpen] = useState(false);
   const [qty, setQty] = useState(1);
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
 
   if (isLoading) {
     return (
@@ -71,31 +58,10 @@ export default function ProductDetailPage() {
       height: 800,
     });
 
-  const startBuy = () => {
-    if (!user) {
-      toast.error("Log in to place an order.");
-      navigate("/login");
-      return;
-    }
-    setOpen(true);
-  };
-
-  const confirmBuy = () => {
-    if (!phone) {
-      toast.error("Enter a contact phone number.");
-      return;
-    }
-    buy.mutate(
-      { product, quantity: qty, phone, address },
-      {
-        onSuccess: () => {
-          toast.success("Order placed and paid. The seller will be in touch.");
-          setOpen(false);
-          navigate("/orders");
-        },
-        onError: (err) => toast.error((err as Error).message),
-      },
-    );
+  const addToCart = (goToCart = false) => {
+    addProduct(product, qty);
+    toast.success("Added to cart.");
+    if (goToCart) navigate("/cart");
   };
 
   return (
@@ -147,14 +113,9 @@ export default function ProductDetailPage() {
             {formatKES(product.price)}
           </p>
 
-          {product.storeName && (
-            <Link
-              to={`/stores/${product.storefrontId}`}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <Store className="h-4 w-4" /> {product.storeName}
-            </Link>
-          )}
+          <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Store className="h-4 w-4" /> {product.storeName ?? "Homiva"}
+          </p>
 
           {(product.town || product.county) && (
             <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
@@ -175,16 +136,43 @@ export default function ProductDetailPage() {
               : "Currently out of stock"}
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <div className="flex items-center rounded-md border bg-card p-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                disabled={qty <= 1}
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="w-10 text-center font-medium">{qty}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                disabled={qty >= product.stock}
+                onClick={() => setQty((q) => Math.min(product.stock, q + 1))}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               size="lg"
               disabled={product.stock <= 0}
-              onClick={startBuy}
+              onClick={() => addToCart(true)}
             >
+              <ShoppingCart className="h-4 w-4" />
               Buy now
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link to={`/messages?to=${product.sellerId}`}>Message seller</Link>
+            <Button
+              size="lg"
+              variant="outline"
+              disabled={product.stock <= 0}
+              onClick={() => addToCart(false)}
+            >
+              Add to cart
             </Button>
           </div>
         </div>
@@ -193,72 +181,6 @@ export default function ProductDetailPage() {
       <div className="mt-12 max-w-2xl">
         <ReviewSection targetType="product" targetId={product.$id} />
       </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Checkout</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <span className="text-sm">Quantity</span>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <span className="w-6 text-center font-medium">{qty}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() =>
-                    setQty((q) => Math.min(product.stock, q + 1))
-                  }
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="phone">Contact phone</Label>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="mt-1"
-                placeholder="07xx xxx xxx"
-              />
-            </div>
-            <div>
-              <Label htmlFor="addr">Delivery address</Label>
-              <Input
-                id="addr"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="mt-1"
-                placeholder="Estate, street, house no."
-              />
-            </div>
-            <div className="flex items-center justify-between border-t pt-3 text-lg font-bold">
-              <span>Total</span>
-              <span className="text-primary">
-                {formatKES(product.price * qty)}
-              </span>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={confirmBuy} disabled={buy.isPending}>
-              {buy.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Pay with Paystack
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

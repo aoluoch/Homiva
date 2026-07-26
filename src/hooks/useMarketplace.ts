@@ -1,9 +1,17 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Permission, Role } from "appwrite";
 import { Query, tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES } from "@/lib/config";
+import {
+  appwriteConfig,
+  DEFAULT_MARKETPLACE_DELIVERY_FEE_KES,
+  MARKETPLACE_DELIVERY_FEE_ROW_ID,
+  MARKETPLACE_DELIVERY_FEE_SETTING,
+  TABLES,
+} from "@/lib/config";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import { usePayment } from "@/hooks/usePayment";
-import type { Product } from "@/types/models";
+import type { AppSetting, Product } from "@/types/models";
+import type { CartItem } from "@/context/CartContext";
 
 const DB = appwriteConfig.databaseId;
 
@@ -59,6 +67,70 @@ export function useProduct(id?: string) {
   });
 }
 
+export function useMarketplaceDeliveryFee() {
+  return useQuery({
+    queryKey: ["marketplace", "delivery-fee"],
+    queryFn: async () => {
+      try {
+        const setting = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: TABLES.appSettings,
+          rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
+        });
+        const parsed = Number((setting as unknown as AppSetting).value);
+        return Number.isFinite(parsed)
+          ? Math.max(0, Math.round(parsed))
+          : DEFAULT_MARKETPLACE_DELIVERY_FEE_KES;
+      } catch {
+        return DEFAULT_MARKETPLACE_DELIVERY_FEE_KES;
+      }
+    },
+  });
+}
+
+export function useAdminUpdateMarketplaceDeliveryFee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (amountKES: number) => {
+      const value = String(Math.max(0, Math.round(amountKES)));
+      try {
+        const current = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: TABLES.appSettings,
+          rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
+        });
+        return tablesDB.updateRow({
+          databaseId: DB,
+          tableId: TABLES.appSettings,
+          rowId: current.$id,
+          data: { value },
+        });
+      } catch (err) {
+        const e = err as { code?: number };
+        if (e.code !== 404) throw err;
+      }
+      return tablesDB.createRow({
+        databaseId: DB,
+        tableId: TABLES.appSettings,
+        rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
+        data: {
+          key: MARKETPLACE_DELIVERY_FEE_SETTING,
+          value,
+          label: "Marketplace delivery fee",
+        },
+        permissions: [
+          Permission.read(Role.any()),
+          Permission.update(Role.team("admins")),
+          Permission.delete(Role.team("admins")),
+        ],
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["marketplace", "delivery-fee"] });
+    },
+  });
+}
+
 export function useStoreProducts(storefrontId?: string) {
   return useAppwriteInfiniteRows<Product>({
     enabled: !!storefrontId,
@@ -76,6 +148,8 @@ export function useStoreProducts(storefrontId?: string) {
 /** Buy a product via Paystack. */
 export function useBuyProduct() {
   const payment = usePayment();
+  const { data: deliveryFee = DEFAULT_MARKETPLACE_DELIVERY_FEE_KES } =
+    useMarketplaceDeliveryFee();
   return useMutation({
     mutationFn: async ({
       product,
@@ -88,7 +162,7 @@ export function useBuyProduct() {
       phone: string;
       address: string;
     }) => {
-      const amountKES = product.price * quantity;
+      const amountKES = product.price * quantity + deliveryFee;
       return payment.mutateAsync({
         purpose: "order",
         amountKES,
@@ -97,7 +171,48 @@ export function useBuyProduct() {
           quantity,
           phone,
           address,
+          secureAddress: address,
+          deliveryFee,
           relatedId: product.$id,
+        },
+      });
+    },
+  });
+}
+
+export function useCheckoutCart() {
+  const payment = usePayment();
+  return useMutation({
+    mutationFn: async ({
+      items,
+      phone,
+      secureAddress,
+      deliveryFee,
+    }: {
+      items: CartItem[];
+      phone: string;
+      secureAddress: string;
+      deliveryFee: number;
+    }) => {
+      const purchasable = items.filter((item) => item.quantity > 0);
+      if (purchasable.length === 0) throw new Error("Your cart is empty.");
+      const subtotal = purchasable.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0,
+      );
+      return payment.mutateAsync({
+        purpose: "order",
+        amountKES: subtotal + deliveryFee,
+        metadata: {
+          items: purchasable.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+          phone,
+          secureAddress,
+          address: secureAddress,
+          deliveryFee,
+          relatedId: purchasable[0]?.productId,
         },
       });
     },

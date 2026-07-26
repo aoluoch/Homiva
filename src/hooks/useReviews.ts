@@ -12,7 +12,8 @@ export type ReviewTarget =
   | "provider"
   | "service"
   | "product"
-  | "storefront";
+  | "storefront"
+  | "partner_company";
 
 export function useReviews(targetType: ReviewTarget, targetId?: string) {
   return useQuery({

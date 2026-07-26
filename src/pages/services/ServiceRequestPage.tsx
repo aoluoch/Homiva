@@ -144,7 +144,7 @@ export default function ServiceRequestPage() {
         },
         files,
       });
-      toast.success("Request submitted! A provider will respond shortly.");
+      toast.success("Request submitted! Homiva will review and schedule it shortly.");
       navigate("/services/requests");
     } catch (err) {
       toast.error((err as Error).message);
@@ -322,7 +322,7 @@ export default function ServiceRequestPage() {
         {step === 4 && (
           <>
             <p className="mb-4 text-sm text-muted-foreground">
-              Add up to 6 photos so providers understand the job (optional).
+              Add up to 6 photos so Homiva understands the job (optional).
             </p>
             <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center hover:bg-secondary">
               <ImagePlus className="mb-2 h-8 w-8 text-muted-foreground" />

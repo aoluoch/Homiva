@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   BadgeCheck,
@@ -7,13 +7,19 @@ import {
   Check,
   ExternalLink,
   FileText,
+  ImageIcon,
   Inbox,
   Loader2,
   MapPin,
   Package,
   Phone,
+  Pencil,
+  Plus,
+  Settings,
   ShieldCheck,
   Store,
+  Trash2,
+  Upload,
   Users,
   Wrench,
   X,
@@ -23,6 +29,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { EmptyState } from "@/components/EmptyState";
@@ -32,24 +56,42 @@ import {
   useAdminStats,
   useAuditLogs,
   useAdminAction,
+  useAdminPartnerCompanies,
   useAllProfiles,
   usePendingApplications,
   usePendingProducts,
   usePendingProperties,
-  usePendingStorefronts,
-  useServiceProviders,
   type AdminStats,
 } from "@/hooks/useAdmin";
-import { fileView } from "@/lib/appwrite";
-import { appwriteConfig } from "@/lib/config";
+import {
+  useAdminUpdateMarketplaceDeliveryFee,
+  useMarketplaceDeliveryFee,
+} from "@/hooks/useMarketplace";
+import {
+  useAdminServiceRequests,
+  useAdminUpdateServiceRequest,
+} from "@/hooks/useServices";
+import {
+  useAdminCreateProduct,
+  useAdminDeleteProduct,
+  useAdminUpdateProduct,
+  type ProductInput,
+} from "@/hooks/useStore";
+import { filePreview, fileView } from "@/lib/appwrite";
+import {
+  appwriteConfig,
+  MARKETPLACE_CATEGORIES,
+  PARTNER_CATEGORIES,
+  PRODUCT_CONDITIONS,
+} from "@/lib/config";
 import { formatKES, initials, timeAgo } from "@/lib/utils";
 import type {
   AuditLog,
   ApplicationStatus,
   Product,
+  PartnerCompany,
   PropertyStatus,
-  ServiceProvider,
-  Storefront,
+  ServiceRequest,
 } from "@/types/models";
 
 export default function AdminDashboardPage() {
@@ -63,17 +105,18 @@ export default function AdminDashboardPage() {
   } = usePendingApplications();
   const { data: properties, isLoading: loadingProps } = usePendingProperties();
   const { data: profiles, isLoading: loadingUsers } = useAllProfiles();
-  const { data: storefronts, isLoading: loadingStores } = usePendingStorefronts();
   const { data: products, isLoading: loadingProducts } = usePendingProducts();
-  const { data: providers, isLoading: loadingProviders } = useServiceProviders();
+  const { data: partners, isLoading: loadingPartners } = useAdminPartnerCompanies();
+  const { data: serviceRequests, isLoading: loadingServices } =
+    useAdminServiceRequests();
   const { data: auditLogs, isLoading: loadingAuditLogs } = useAuditLogs();
 
   const pendingApps = applications.filter((a) => a.status === "pending");
   const pendingProps = properties?.filter((p) => p.status === "pending") ?? [];
-  const pendingStores = storefronts?.filter((s) => s.status === "pending") ?? [];
   const pendingProducts = products?.filter((p) => p.status === "pending") ?? [];
-  const unverifiedProviders =
-    providers?.filter((provider) => !provider.verified) ?? [];
+  const pendingPartners = partners?.filter((p) => p.status === "pending") ?? [];
+  const openServices =
+    serviceRequests?.filter((r) => !["completed", "paid", "cancelled"].includes(String(r.status))) ?? [];
 
   return (
     <div className="container max-w-7xl py-5 sm:py-8">
@@ -105,11 +148,11 @@ export default function AdminDashboardPage() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="storefronts" className="h-9">
-              Stores
-              {pendingStores.length > 0 && (
+            <TabsTrigger value="partners" className="h-9">
+              Partners
+              {pendingPartners.length > 0 && (
                 <Badge variant="accent" className="ml-2">
-                  {pendingStores.length}
+                  {pendingPartners.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -121,11 +164,15 @@ export default function AdminDashboardPage() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="providers" className="h-9">
-              Providers
-              {unverifiedProviders.length > 0 && (
+            <TabsTrigger value="marketplace-settings" className="h-9">
+              <Settings className="mr-1 h-4 w-4" />
+              Marketplace
+            </TabsTrigger>
+            <TabsTrigger value="services" className="h-9">
+              Services
+              {openServices.length > 0 && (
                 <Badge variant="accent" className="ml-2">
-                  {unverifiedProviders.length}
+                  {openServices.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -194,25 +241,28 @@ export default function AdminDashboardPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="storefronts" className="mt-6">
-          {loadingStores ? (
+        <TabsContent value="partners" className="mt-6">
+          {loadingPartners ? (
             <LoadingRows />
-          ) : storefronts && storefronts.length > 0 ? (
+          ) : partners && partners.length > 0 ? (
             <div className="space-y-3">
-              {storefronts.map((s) => (
-                <StorefrontRow key={s.$id} store={s} />
+              {partners.map((company) => (
+                <PartnerCompanyRow key={company.$id} company={company} />
               ))}
             </div>
           ) : (
             <EmptyState
               icon={Store}
-              title="No storefronts"
-              description="Submitted business storefronts will appear here for approval."
+              title="No partner companies"
+              description="Submitted partner company profiles will appear here for approval."
             />
           )}
         </TabsContent>
 
         <TabsContent value="products" className="mt-6">
+          <div className="mb-4 flex justify-end">
+            <AdminProductDialog />
+          </div>
           {loadingProducts ? (
             <LoadingRows />
           ) : products && products.length > 0 ? (
@@ -225,25 +275,29 @@ export default function AdminDashboardPage() {
             <EmptyState
               icon={Package}
               title="No products"
-              description="Products submitted by sellers will appear here for approval."
+              description="Homiva marketplace products will appear here."
             />
           )}
         </TabsContent>
 
-        <TabsContent value="providers" className="mt-6">
-          {loadingProviders ? (
+        <TabsContent value="marketplace-settings" className="mt-6">
+          <AdminMarketplaceSettings />
+        </TabsContent>
+
+        <TabsContent value="services" className="mt-6">
+          {loadingServices ? (
             <LoadingRows />
-          ) : providers && providers.length > 0 ? (
+          ) : serviceRequests && serviceRequests.length > 0 ? (
             <div className="space-y-3">
-              {providers.map((provider) => (
-                <ProviderRow key={provider.$id} provider={provider} />
+              {serviceRequests.map((request) => (
+                <ServiceRequestRow key={request.$id} request={request} />
               ))}
             </div>
           ) : (
             <EmptyState
               icon={Wrench}
-              title="No provider profiles"
-              description="Service providers will appear here after submitting their verification profile."
+              title="No service requests"
+              description="Homiva-operated service requests will appear here."
             />
           )}
         </TabsContent>
@@ -318,7 +372,7 @@ function AdminOverview({ stats }: { stats: AdminStats }) {
     { label: "Users", value: stats.users.toLocaleString() },
     { label: "Approved listings", value: stats.propertiesApproved.toLocaleString() },
     { label: "Pending listings", value: stats.propertiesPending.toLocaleString() },
-    { label: "Stores", value: stats.storefrontsApproved.toLocaleString() },
+    { label: "Published partners", value: stats.partnerCompaniesPublished.toLocaleString() },
     { label: "Bookings GMV", value: formatKES(stats.bookingsGmv) },
     { label: "Orders revenue", value: formatKES(stats.ordersRevenue) },
     { label: "Completed jobs", value: stats.completedJobs.toLocaleString() },
@@ -550,11 +604,20 @@ function PropertyRow({
   const action = useAdminAction();
   const [busy, setBusy] = useState<string | null>(null);
 
-  const run = (type: "approveProperty" | "rejectProperty", label: string) => {
+  const run = (
+    type:
+      | "approveProperty"
+      | "rejectProperty"
+      | "verifyPropertyLocation"
+      | "rejectPropertyLocation",
+    label: string,
+  ) => {
     let note: string | undefined;
-    if (type === "rejectProperty") {
+    if (type === "rejectProperty" || type === "rejectPropertyLocation") {
       note = prompt("Reason for rejection:") ?? undefined;
       if (note === undefined) return;
+    } else if (type === "verifyPropertyLocation") {
+      note = prompt("Location verification note (optional):") ?? undefined;
     }
     setBusy(type);
     action.mutate(
@@ -576,6 +639,17 @@ function PropertyRow({
             <Badge variant={propStatusVariant[property.status]}>
               {property.status}
             </Badge>
+            <Badge
+              variant={
+                property.locationVerificationStatus === "verified"
+                  ? "success"
+                  : property.locationVerificationStatus === "rejected"
+                    ? "destructive"
+                    : "warning"
+              }
+            >
+              location {property.locationVerificationStatus ?? "pending"}
+            </Badge>
             <Badge variant="outline" className="capitalize">
               {property.listingType}
             </Badge>
@@ -591,12 +665,38 @@ function PropertyRow({
               View
             </a>
           </Button>
+          {property.locationVerificationStatus !== "verified" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full md:w-auto"
+              onClick={() =>
+                run("verifyPropertyLocation", "physical location verified")
+              }
+              disabled={!!busy}
+            >
+              <BadgeCheck className="h-4 w-4" /> Verify location
+            </Button>
+          )}
+          {property.locationVerificationStatus !== "rejected" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full md:w-auto"
+              onClick={() =>
+                run("rejectPropertyLocation", "physical location rejected")
+              }
+              disabled={!!busy}
+            >
+              Reject location
+            </Button>
+          )}
           {property.status !== "approved" && (
             <Button
               size="sm"
               className="w-full md:w-auto"
               onClick={() => run("approveProperty", "approved & published")}
-              disabled={!!busy}
+              disabled={!!busy || property.locationVerificationStatus !== "verified"}
             >
               {busy === "approveProperty" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -623,16 +723,24 @@ function PropertyRow({
   );
 }
 
-function StorefrontRow({ store }: { store: Storefront }) {
+function PartnerCompanyRow({ company }: { company: PartnerCompany }) {
   const action = useAdminAction();
   const [busy, setBusy] = useState<string | null>(null);
 
-  const run = (type: "approveStorefront" | "rejectStorefront" | "verifyStorefront", label: string) => {
+  const run = (
+    type:
+      | "approvePartnerCompany"
+      | "rejectPartnerCompany"
+      | "suspendPartnerCompany"
+      | "featurePartnerCompany"
+      | "unfeaturePartnerCompany",
+    label: string,
+  ) => {
     setBusy(type);
     action.mutate(
-      { action: type, storefrontId: store.$id },
+      { action: type, partnerCompanyId: company.$id },
       {
-        onSuccess: () => toast.success(`Store ${label}.`),
+        onSuccess: () => toast.success(`Partner company ${label}.`),
         onError: (err) => toast.error((err as Error).message),
         onSettled: () => setBusy(null),
       },
@@ -644,34 +752,44 @@ function StorefrontRow({ store }: { store: Storefront }) {
       <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="min-w-0 break-words font-medium">{store.name}</p>
+            <p className="min-w-0 break-words font-medium">{company.name}</p>
             <Badge
               variant={
-                store.status === "approved"
+                company.status === "approved"
                   ? "success"
-                  : store.status === "rejected"
+                  : company.status === "rejected" || company.status === "suspended"
                     ? "destructive"
                     : "warning"
               }
             >
-              {store.status}
+              {company.status}
             </Badge>
-            {store.verified && <BadgeCheck className="h-4 w-4 text-primary" />}
-            <Badge variant="outline">{store.category}</Badge>
+            <Badge
+              variant={
+                company.subscriptionStatus === "active" ? "success" : "secondary"
+              }
+            >
+              {company.subscriptionStatus}
+            </Badge>
+            <Badge variant="outline">
+              {PARTNER_CATEGORIES.find((c) => c.key === company.category)?.label}
+            </Badge>
+            {company.featured && <Badge variant="accent">featured</Badge>}
           </div>
           <p className="break-words text-sm text-muted-foreground">
-            {store.description}
+            {company.town || company.county
+              ? `${company.town}${company.town && company.county ? ", " : ""}${company.county}`
+              : "No location set"}
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 md:flex md:shrink-0 md:flex-wrap md:justify-end">
-          <Button asChild size="sm" variant="ghost" className="w-full md:w-auto">
-            <a href={`/stores/${store.$id}`} target="_blank" rel="noreferrer">
-              View
-            </a>
-          </Button>
-          {store.status !== "approved" && (
-            <Button size="sm" className="w-full md:w-auto" onClick={() => run("approveStorefront", "approved")} disabled={!!busy}>
-              {busy === "approveStorefront" ? (
+          {company.status !== "approved" && (
+            <Button
+              size="sm"
+              onClick={() => run("approvePartnerCompany", "approved")}
+              disabled={!!busy}
+            >
+              {busy === "approvePartnerCompany" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Check className="h-4 w-4" />
@@ -679,16 +797,189 @@ function StorefrontRow({ store }: { store: Storefront }) {
               Approve
             </Button>
           )}
-          {!store.verified && store.status === "approved" && (
-            <Button size="sm" variant="outline" className="w-full md:w-auto" onClick={() => run("verifyStorefront", "verified")} disabled={!!busy}>
-              <BadgeCheck className="h-4 w-4" /> Verify
+          {company.status === "approved" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => run("suspendPartnerCompany", "suspended")}
+              disabled={!!busy}
+            >
+              Suspend
             </Button>
           )}
-          {store.status !== "rejected" && (
-            <Button size="sm" variant="outline" className="w-full md:w-auto" onClick={() => run("rejectStorefront", "rejected")} disabled={!!busy}>
+          {company.status !== "rejected" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => run("rejectPartnerCompany", "rejected")}
+              disabled={!!busy}
+            >
               <X className="h-4 w-4" /> Reject
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              run(
+                company.featured
+                  ? "unfeaturePartnerCompany"
+                  : "featurePartnerCompany",
+                company.featured ? "unfeatured" : "featured",
+              )
+            }
+            disabled={!!busy}
+          >
+            {company.featured ? "Unfeature" : "Feature"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ServiceRequestRow({ request }: { request: ServiceRequest }) {
+  const update = useAdminUpdateServiceRequest();
+  const [status, setStatus] = useState(String(request.status || "requested"));
+  const [quote, setQuote] = useState(String(request.quotedAmount || ""));
+  const [assignedTo, setAssignedTo] = useState(request.assignedTo || "");
+  const [note, setNote] = useState(request.adminNote || "");
+
+  const save = () => {
+    update.mutate(
+      {
+        requestId: request.$id,
+        status,
+        quotedAmount: quote ? Number(quote) : undefined,
+        assignedTo,
+        adminNote: note,
+      },
+      {
+        onSuccess: () => toast.success("Service request updated."),
+        onError: (err) => toast.error((err as Error).message),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_420px]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium">{request.userName || "Homiva user"}</p>
+            <Badge variant="secondary">{request.category}</Badge>
+            <Badge variant={request.status === "paid" ? "success" : "warning"}>
+              {String(request.status)}
+            </Badge>
+          </div>
+          <p className="mt-1 break-words text-sm text-muted-foreground">
+            {request.problem} {request.propertyType ? `· ${request.propertyType}` : ""}
+            {request.town || request.county
+              ? ` · ${request.town}${request.town && request.county ? ", " : ""}${request.county}`
+              : ""}
+          </p>
+          {request.description && (
+            <p className="mt-2 break-words text-sm">{request.description}</p>
+          )}
+          <p className="mt-2 text-sm text-muted-foreground">
+            Estimate {formatKES(request.estimatedMin || 0)} -{" "}
+            {formatKES(request.estimatedMax || 0)}
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                "requested",
+                "reviewed",
+                "quoted",
+                "scheduled",
+                "in_progress",
+                "completed",
+                "paid",
+                "cancelled",
+              ].map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            placeholder="Quoted amount"
+            value={quote}
+            onChange={(e) => setQuote(e.target.value)}
+          />
+          <Input
+            placeholder="Assigned Homiva team"
+            value={assignedTo}
+            onChange={(e) => setAssignedTo(e.target.value)}
+          />
+          <Input
+            placeholder="Admin note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <Button onClick={save} disabled={update.isPending} className="sm:col-span-2">
+            {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save service update
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdminMarketplaceSettings() {
+  const { data: deliveryFee = 0, isLoading } = useMarketplaceDeliveryFee();
+  const updateFee = useAdminUpdateMarketplaceDeliveryFee();
+  const [fee, setFee] = useState("");
+
+  useEffect(() => {
+    setFee(String(deliveryFee));
+  }, [deliveryFee]);
+
+  const save = () => {
+    const amount = Number(fee);
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error("Enter a valid delivery fee.");
+      return;
+    }
+    updateFee.mutate(amount, {
+      onSuccess: () => toast.success("Delivery fee updated."),
+      onError: (err) => toast.error((err as Error).message),
+    });
+  };
+
+  return (
+    <Card>
+      <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_320px] md:items-end">
+        <div>
+          <h2 className="text-lg font-semibold">Marketplace checkout</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Set the delivery fee added to every cart checkout.
+          </p>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="delivery-fee">Delivery fee (KES)</Label>
+          <div className="flex gap-2">
+            <Input
+              id="delivery-fee"
+              type="number"
+              min={0}
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
+              disabled={isLoading}
+            />
+            <Button onClick={save} disabled={updateFee.isPending || isLoading}>
+              {updateFee.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -697,7 +988,10 @@ function StorefrontRow({ store }: { store: Storefront }) {
 
 function ProductModerationRow({ product }: { product: Product }) {
   const action = useAdminAction();
+  const update = useAdminUpdateProduct();
+  const del = useAdminDeleteProduct();
   const [busy, setBusy] = useState<string | null>(null);
+  const [stock, setStock] = useState(String(product.stock ?? 0));
 
   const run = (type: "approveProduct" | "rejectProduct", label: string) => {
     setBusy(type);
@@ -714,6 +1008,22 @@ function ProductModerationRow({ product }: { product: Product }) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
+        <div className="h-20 w-24 shrink-0 overflow-hidden rounded-md border bg-muted">
+          {product.coverImageId ? (
+            <img
+              src={filePreview(appwriteConfig.buckets.productImages, product.coverImageId, {
+                width: 160,
+                height: 120,
+              })}
+              alt={product.title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="grid h-full place-items-center text-muted-foreground">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="min-w-0 break-words font-medium">{product.title}</p>
@@ -736,12 +1046,13 @@ function ProductModerationRow({ product }: { product: Product }) {
             {formatKES(product.price)} &middot; {product.storeName}
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3 md:flex md:shrink-0">
+        <div className="grid gap-2 sm:grid-cols-3 md:flex md:shrink-0 md:flex-wrap md:justify-end">
           <Button asChild size="sm" variant="ghost" className="w-full md:w-auto">
             <a href={`/marketplace/${product.$id}`} target="_blank" rel="noreferrer">
               View
             </a>
           </Button>
+          <ProductEditDialog product={product} />
           {product.status !== "approved" && (
             <Button size="sm" className="w-full md:w-auto" onClick={() => run("approveProduct", "approved")} disabled={!!busy}>
               {busy === "approveProduct" ? (
@@ -757,74 +1068,399 @@ function ProductModerationRow({ product }: { product: Product }) {
               <X className="h-4 w-4" /> Reject
             </Button>
           )}
+          <Input
+            className="h-9 w-full md:w-24"
+            type="number"
+            value={stock}
+            onChange={(e) => setStock(e.target.value)}
+            aria-label="Stock"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              update.mutate(
+                { id: product.$id, values: { stock: Number(stock) } },
+                {
+                  onSuccess: () => toast.success("Stock updated."),
+                  onError: (err) => toast.error((err as Error).message),
+                },
+              )
+            }
+            disabled={update.isPending}
+          >
+            Save stock
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              del.mutate(product.$id, {
+                onSuccess: () => toast.success("Product deleted."),
+                onError: (err) => toast.error((err as Error).message),
+              })
+            }
+            disabled={del.isPending}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function ProviderRow({ provider }: { provider: ServiceProvider }) {
-  const action = useAdminAction();
-  const [busy, setBusy] = useState<string | null>(null);
+function ProductEditDialog({ product }: { product: Product }) {
+  const update = useAdminUpdateProduct();
+  const [open, setOpen] = useState(false);
+  const [values, setValues] = useState<ProductInput>({
+    title: product.title,
+    description: product.description || "",
+    category: product.category || MARKETPLACE_CATEGORIES[0].key,
+    condition: product.condition || "new",
+    price: product.price || 0,
+    stock: product.stock || 0,
+    county: product.county || "",
+    town: product.town || "",
+  });
+  const [files, setFiles] = useState<File[]>([]);
 
-  const run = (type: "verifyProvider" | "unverifyProvider", label: string) => {
-    setBusy(type);
-    action.mutate(
-      { action: type, providerId: provider.$id },
+  useEffect(() => {
+    if (!open) return;
+    setValues({
+      title: product.title,
+      description: product.description || "",
+      category: product.category || MARKETPLACE_CATEGORIES[0].key,
+      condition: product.condition || "new",
+      price: product.price || 0,
+      stock: product.stock || 0,
+      county: product.county || "",
+      town: product.town || "",
+    });
+    setFiles([]);
+  }, [open, product]);
+
+  const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) =>
+    setValues((current) => ({ ...current, [key]: value }));
+
+  const submit = () => {
+    if (!values.title.trim() || values.price <= 0) {
+      toast.error("Product title and price are required.");
+      return;
+    }
+    update.mutate(
+      { id: product.$id, values, files },
       {
-        onSuccess: () => toast.success(`Provider ${label}.`),
+        onSuccess: () => {
+          toast.success("Product updated.");
+          setOpen(false);
+          setFiles([]);
+        },
         onError: (err) => toast.error((err as Error).message),
-        onSettled: () => setBusy(null),
+      },
+    );
+  };
+
+  const currentImages = product.imageIds?.length
+    ? product.imageIds
+    : product.coverImageId
+      ? [product.coverImageId]
+      : [];
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="w-full md:w-auto">
+          <Pencil className="h-4 w-4" />
+          Edit
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit marketplace product</DialogTitle>
+        </DialogHeader>
+        <ProductFields values={values} set={set} />
+        {currentImages.length > 0 && (
+          <div>
+            <Label>Current images</Label>
+            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {currentImages.map((fileId) => (
+                <div
+                  key={fileId}
+                  className="aspect-square overflow-hidden rounded-md border bg-muted"
+                >
+                  <img
+                    src={filePreview(appwriteConfig.buckets.productImages, fileId, {
+                      width: 160,
+                      height: 160,
+                    })}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <ImageUploadPreview
+          files={files}
+          onChange={setFiles}
+          label="Replace images"
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={update.isPending}>
+            {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save product
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AdminProductDialog() {
+  const create = useAdminCreateProduct();
+  const [open, setOpen] = useState(false);
+  const [values, setValues] = useState<ProductInput>({
+    title: "",
+    description: "",
+    category: MARKETPLACE_CATEGORIES[0].key,
+    condition: "new",
+    price: 0,
+    stock: 1,
+    county: "",
+    town: "",
+  });
+  const [files, setFiles] = useState<File[]>([]);
+
+  const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) =>
+    setValues((current) => ({ ...current, [key]: value }));
+
+  const submit = () => {
+    if (!values.title.trim() || values.price <= 0) {
+      toast.error("Product title and price are required.");
+      return;
+    }
+    create.mutate(
+      { values, files },
+      {
+        onSuccess: () => {
+          toast.success("Homiva product published.");
+          setOpen(false);
+          setValues({
+            title: "",
+            description: "",
+            category: MARKETPLACE_CATEGORIES[0].key,
+            condition: "new",
+            price: 0,
+            stock: 1,
+            county: "",
+            town: "",
+          });
+          setFiles([]);
+        },
+        onError: (err) => toast.error((err as Error).message),
       },
     );
   };
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="min-w-0 break-words font-medium">
-              {provider.businessName}
-            </p>
-            <Badge variant={provider.verified ? "success" : "warning"}>
-              {provider.verified ? "verified" : "pending verification"}
-            </Badge>
-            {provider.county && <Badge variant="outline">{provider.county}</Badge>}
-          </div>
-          <p className="mt-1 break-words text-sm text-muted-foreground">
-            {(provider.categories ?? []).join(", ") || "No categories selected"}
-          </p>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="h-4 w-4" /> Add Homiva product
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add Homiva marketplace product</DialogTitle>
+        </DialogHeader>
+        <ProductFields values={values} set={set} />
+        <ImageUploadPreview files={files} onChange={setFiles} label="Images" />
+        <DialogFooter>
+          <Button onClick={submit} disabled={create.isPending}>
+            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Publish product
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type ProductFieldSetter = <K extends keyof ProductInput>(
+  key: K,
+  value: ProductInput[K],
+) => void;
+
+function ProductFields({
+  values,
+  set,
+}: {
+  values: ProductInput;
+  set: ProductFieldSetter;
+}) {
+  return (
+    <div className="grid gap-3">
+      <div>
+        <Label>Title</Label>
+        <Input
+          value={values.title}
+          onChange={(e) => set("title", e.target.value)}
+          className="mt-1"
+        />
+      </div>
+      <div>
+        <Label>Description</Label>
+        <Textarea
+          value={values.description}
+          onChange={(e) => set("description", e.target.value)}
+          className="mt-1"
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label>Category</Label>
+          <Select value={values.category} onValueChange={(v) => set("category", v)}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MARKETPLACE_CATEGORIES.map((category) => (
+                <SelectItem key={category.key} value={category.key}>
+                  {category.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div className="grid gap-2 md:flex md:shrink-0">
-          {!provider.verified ? (
-            <Button
-              size="sm"
-              className="w-full md:w-auto"
-              onClick={() => run("verifyProvider", "verified")}
-              disabled={!!busy}
-            >
-              {busy === "verifyProvider" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <BadgeCheck className="h-4 w-4" />
-              )}
-              Verify
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full md:w-auto"
-              onClick={() => run("unverifyProvider", "unverified")}
-              disabled={!!busy}
-            >
-              Remove verification
-            </Button>
-          )}
+        <div>
+          <Label>Condition</Label>
+          <Select
+            value={values.condition}
+            onValueChange={(v) => set("condition", v as ProductInput["condition"])}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRODUCT_CONDITIONS.map((condition) => (
+                <SelectItem
+                  key={condition}
+                  value={condition}
+                  className="capitalize"
+                >
+                  {condition}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </CardContent>
-    </Card>
+        <div>
+          <Label>Price (KES)</Label>
+          <Input
+            type="number"
+            value={values.price || ""}
+            onChange={(e) => set("price", Number(e.target.value))}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label>Stock</Label>
+          <Input
+            type="number"
+            value={values.stock || ""}
+            onChange={(e) => set("stock", Number(e.target.value))}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label>County</Label>
+          <Input
+            value={values.county || ""}
+            onChange={(e) => set("county", e.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label>Town</Label>
+          <Input
+            value={values.town || ""}
+            onChange={(e) => set("town", e.target.value)}
+            className="mt-1"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageUploadPreview({
+  files,
+  onChange,
+  label,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  label: string;
+}) {
+  const [previews, setPreviews] = useState<Array<{ name: string; url: string }>>([]);
+
+  useEffect(() => {
+    const next = files.map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+    setPreviews(next);
+    return () => next.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, [files]);
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-muted/40 p-5 text-center text-sm text-muted-foreground transition-colors hover:bg-muted">
+        <Upload className="h-5 w-5" />
+        <span>Select product images</span>
+        <Input
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          onChange={(e) =>
+            onChange(Array.from(e.target.files ?? []).slice(0, 8))
+          }
+        />
+      </label>
+      {previews.length > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {previews.map((preview, index) => (
+            <div
+              key={`${preview.name}-${index}`}
+              className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
+            >
+              <img
+                src={preview.url}
+                alt={preview.name}
+                className="h-full w-full object-cover"
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="secondary"
+                className="absolute right-1 top-1 h-7 w-7 opacity-95"
+                onClick={() => onChange(files.filter((_, i) => i !== index))}
+                aria-label={`Remove ${preview.name}`}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

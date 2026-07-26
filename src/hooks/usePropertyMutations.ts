@@ -75,6 +75,7 @@ export function useCreateProperty() {
           imageIds,
           coverImageId: imageIds[0] ?? null,
           status: "pending",
+          locationVerificationStatus: "pending",
           ownerId: user.$id,
           ownerName: profile?.name ?? user.name,
           ownerRole: resolveOwnerRole(roles, values.listingType),
@@ -118,6 +119,7 @@ export function useUpdateProperty() {
           coverImageId: imageIds[0] ?? null,
           // Editing sends the listing back to review.
           status: "pending",
+          locationVerificationStatus: "pending",
         },
       });
     },

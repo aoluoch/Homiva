@@ -20,8 +20,8 @@ const steps = [
   },
   {
     icon: ShieldCheck,
-    title: "Verified pros deliver",
-    body: "A vetted provider accepts, completes the work, and you pay securely.",
+    title: "Homiva handles delivery",
+    body: "The Homiva operations team reviews, schedules, completes the work, and keeps payment secure.",
   },
 ];
 
@@ -36,8 +36,8 @@ export default function ServicesPage() {
           Home services you can trust, on demand
         </h1>
         <p className="mt-3 max-w-xl text-muted-foreground">
-          Cleaning, repairs, plumbing, electrical, movers and more - request a
-          verified professional and get an upfront price estimate in minutes.
+          Maintenance, Mama Fua cleaning and plumbing handled directly by the
+          Homiva operations team with upfront estimates.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button size="lg" onClick={() => navigate("/services/request")}>

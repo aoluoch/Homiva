@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "deploy:admin": "tsx scripts/deploy-admin-function.ts",
     "deploy:payments": "tsx scripts/deploy-payments-function.ts",
+    "setup:marketplace": "tsx scripts/finalize-marketplace-schema.ts",
     "setup:appwrite": "tsx scripts/setup-appwrite.ts",
     "seed": "tsx scripts/seed.ts"
   },

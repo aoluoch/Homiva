@@ -278,6 +278,99 @@ export function useDeleteProduct() {
   });
 }
 
+export function useAdminCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      values,
+      files,
+    }: {
+      values: ProductInput;
+      files: File[];
+    }) => {
+      const imageIds = await Promise.all(
+        files.map((f) => uploadImage(appwriteConfig.buckets.productImages, f)),
+      );
+      return tablesDB.createRow({
+        databaseId: DB,
+        tableId: TABLES.products,
+        rowId: ID.unique(),
+        data: {
+          ...values,
+          storefrontId: "homiva",
+          sellerId: "homiva-admin",
+          storeName: "Homiva",
+          imageIds,
+          coverImageId: imageIds[0] ?? null,
+          status: "approved",
+          featured: false,
+        },
+        permissions: [
+          Permission.read(Role.any()),
+          Permission.update(Role.team("admins")),
+          Permission.delete(Role.team("admins")),
+        ],
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+export function useAdminUpdateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      values,
+      files,
+    }: {
+      id: string;
+      values: Partial<ProductInput> & { status?: string; featured?: boolean };
+      files?: File[];
+    }) => {
+      const imageIds = files?.length
+        ? await Promise.all(
+            files.map((f) => uploadImage(appwriteConfig.buckets.productImages, f)),
+          )
+        : [];
+      return tablesDB.updateRow({
+        databaseId: DB,
+        tableId: TABLES.products,
+        rowId: id,
+        data: {
+          ...values,
+          ...(imageIds.length
+            ? { imageIds, coverImageId: imageIds[0] ?? null }
+            : {}),
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+export function useAdminDeleteProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      tablesDB.deleteRow({
+        databaseId: DB,
+        tableId: TABLES.products,
+        rowId: id,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "products"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
 // --- Orders (seller + buyer views) -----------------------------------------
 
 export function useSellerOrders() {

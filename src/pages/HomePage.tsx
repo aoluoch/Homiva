@@ -51,13 +51,13 @@ const journeyLinks = [
     to: "/services",
     icon: Wrench,
     title: "Repair",
-    desc: "Request home help from providers when the work cannot wait.",
+    desc: "Request Homiva-managed maintenance, Mama Fua and plumbing help.",
   },
   {
     to: "/marketplace",
     icon: ShoppingBag,
     title: "Shop",
-    desc: "Browse storefronts for useful household goods and local finds.",
+    desc: "Shop Homiva-managed household goods and home essentials.",
   },
 ];
 
@@ -154,7 +154,7 @@ export default function HomePage() {
             <div className="grid gap-3 p-5">
               <BoardItem label="Find a place" value="Sale, rent, short stay" />
               <BoardItem label="Keep it moving" value="Bookings and requests" />
-              <BoardItem label="Run the business" value="Listings and shops" />
+              <BoardItem label="Run the business" value="Listings and partners" />
             </div>
             <div className="grid grid-cols-3 border-t text-center text-sm">
               <BoardStat value="5" label="home paths" />
@@ -218,12 +218,12 @@ export default function HomePage() {
             <ValueProp
               icon={ShieldCheck}
               title="Reviewed context"
-              desc="Listings, providers and roles are designed around accountable profiles."
+              desc="Listings, partner companies and roles are designed around accountable profiles."
             />
             <ValueProp
               icon={Building2}
               title="Many roles"
-              desc="A buyer can become a host, provider, landlord or shop owner."
+              desc="A buyer can become a host, landlord, agent or partner company."
             />
             <ValueProp
               icon={Wrench}

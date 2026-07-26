@@ -18,12 +18,12 @@ import NotFoundPage from "@/pages/NotFoundPage";
 import ServicesPage from "@/pages/services/ServicesPage";
 import ServiceRequestPage from "@/pages/services/ServiceRequestPage";
 import MyServiceRequestsPage from "@/pages/services/MyServiceRequestsPage";
-import ProviderDashboardPage from "@/pages/services/ProviderDashboardPage";
 import MarketplacePage from "@/pages/marketplace/MarketplacePage";
+import CartPage from "@/pages/marketplace/CartPage";
 import ProductDetailPage from "@/pages/marketplace/ProductDetailPage";
-import StoresPage from "@/pages/stores/StoresPage";
-import StorefrontPage from "@/pages/stores/StorefrontPage";
-import MyStorefrontPage from "@/pages/storefront/MyStorefrontPage";
+import PartnersPage from "@/pages/partners/PartnersPage";
+import PartnerDetailPage from "@/pages/partners/PartnerDetailPage";
+import PartnerDashboardPage from "@/pages/partners/PartnerDashboardPage";
 import OrdersPage from "@/pages/OrdersPage";
 import TripsPage from "@/pages/TripsPage";
 import HostBookingsPage from "@/pages/HostBookingsPage";
@@ -40,9 +40,10 @@ export default function App() {
         <Route path="services" element={<ServicesPage />} />
         <Route path="services/request" element={<ServiceRequestPage />} />
         <Route path="marketplace" element={<MarketplacePage />} />
+        <Route path="cart" element={<CartPage />} />
         <Route path="marketplace/:id" element={<ProductDetailPage />} />
-        <Route path="stores" element={<StoresPage />} />
-        <Route path="stores/:id" element={<StorefrontPage />} />
+        <Route path="partners" element={<PartnersPage />} />
+        <Route path="partners/:id" element={<PartnerDetailPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
 
@@ -51,15 +52,11 @@ export default function App() {
           <Route path="saved" element={<SavedPage />} />
           <Route path="recently-viewed" element={<RecentlyViewedPage />} />
           <Route path="services/requests" element={<MyServiceRequestsPage />} />
-          <Route path="storefront" element={<MyStorefrontPage />} />
+          <Route path="partner" element={<PartnerDashboardPage />} />
           <Route path="orders" element={<OrdersPage />} />
           <Route path="trips" element={<TripsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="messages" element={<MessagesPage />} />
-        </Route>
-
-        <Route element={<RoleRoute anyOf={[TEAMS.providers]} />}>
-          <Route path="provider" element={<ProviderDashboardPage />} />
         </Route>
 
         <Route element={<RoleRoute anyOf={[TEAMS.airbnbOwners, TEAMS.agents]} />}>

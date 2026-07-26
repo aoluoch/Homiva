@@ -10,7 +10,7 @@ import { Client, TablesDB, ID, Permission, Role, Query } from "node-appwrite";
  *   - service      -> mark a service_request as paid
  *   - booking      -> confirm an Airbnb booking
  *   - order        -> mark a marketplace order as paid + decrement stock
- *   - subscription -> activate a storefront subscription (+30 days)
+ *   - subscription -> activate a partner company or legacy storefront subscription (+30 days)
  *
  * All fulfillment happens here (never trusting the client) after Paystack
  * confirms the charge succeeded.
@@ -34,12 +34,17 @@ const T = {
   properties: "properties",
   subscriptions: "subscriptions",
   storefronts: "storefronts",
+  partnerCompanies: "partner_companies",
   profiles: "profiles",
   notifications: "notifications",
+  appSettings: "app_settings",
 };
 
 const VIEWING_FEE_KES = 200;
-const PLAN_PRICES = { free: 0, pro: 2500, premium: 6000 };
+const PLAN_PRICES = { basic: 2500, pro: 5000, premium: 9000 };
+const MARKETPLACE_DELIVERY_FEE_SETTING = "marketplace_delivery_fee_kes";
+const MARKETPLACE_DELIVERY_FEE_ROW_ID = "marketplace_delivery_fee";
+const DEFAULT_MARKETPLACE_DELIVERY_FEE_KES = 300;
 
 export default async ({ req, res, log, error }) => {
   const endpoint =
@@ -155,7 +160,7 @@ export default async ({ req, res, log, error }) => {
         method: "paystack",
         status: "paid",
         reference,
-        relatedId: metadata.relatedId || metadata.propertyId || metadata.serviceRequestId || metadata.productId || metadata.storefrontId || "",
+        relatedId: metadata.relatedId || metadata.propertyId || metadata.serviceRequestId || metadata.productId || metadata.partnerCompanyId || metadata.storefrontId || metadata.targetId || "",
       },
       permissions: userPerms,
     });
@@ -166,6 +171,23 @@ export default async ({ req, res, log, error }) => {
     }
     if (amountKES !== Math.round(expectedKES)) {
       throw new Error(`Payment amount mismatch. Expected KES ${Math.round(expectedKES)}, received KES ${amountKES}.`);
+    }
+  };
+
+  const marketplaceDeliveryFee = async () => {
+    try {
+      const setting = await tablesDB.getRow({
+        databaseId: DB,
+        tableId: T.appSettings,
+        rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
+      });
+      const parsed = Number(setting?.value);
+      return Number.isFinite(parsed)
+        ? Math.max(0, Math.round(parsed))
+        : DEFAULT_MARKETPLACE_DELIVERY_FEE_KES;
+    } catch (e) {
+      log(`delivery fee setting note: ${e.message}`);
+      return DEFAULT_MARKETPLACE_DELIVERY_FEE_KES;
     }
   };
 
@@ -275,63 +297,129 @@ export default async ({ req, res, log, error }) => {
       }
 
       case "order": {
-        const { productId, quantity = 1, phone, address } = metadata;
-        if (!productId) return fail("Missing productId.");
-        const qty = Math.max(1, Math.floor(Number(quantity) || 1));
-        const product = await tablesDB.getRow({
-          databaseId: DB,
-          tableId: T.products,
-          rowId: productId,
-        });
-        if (product.status !== "approved") return fail("This product is not available for purchase.");
-        if ((product.stock || 0) < qty) return fail("Not enough stock available.");
-        assertPaidAmount(Number(product.price || 0) * qty);
-        await recordPayment();
-        const buyerName = await profileName(tablesDB, callerId);
-        const order = await tablesDB.createRow({
-          databaseId: DB,
-          tableId: T.orders,
-          rowId: ID.unique(),
-          data: {
-            buyerId: callerId,
-            buyerName,
-            sellerId: product.sellerId,
-            productId,
-            productTitle: product.title,
-            quantity: qty,
-            amount: amountKES,
-            status: "paid",
-            phone: phone || "",
-            address: address || "",
-            paymentRef: reference,
-          },
-          permissions: [
-            ...userPerms,
-            Permission.read(Role.user(product.sellerId)),
-            Permission.update(Role.user(product.sellerId)),
-          ],
-        });
-        // Decrement stock (best-effort).
-        try {
-          const newStock = Math.max(0, (product.stock || 0) - qty);
-          await tablesDB.updateRow({
+        const { productId, quantity = 1, phone, address, secureAddress } = metadata;
+        const rawItems = Array.isArray(metadata.items) && metadata.items.length > 0
+          ? metadata.items
+          : productId
+            ? [{ productId, quantity }]
+            : [];
+        if (rawItems.length === 0) return fail("Missing cart items.");
+
+        const mergedItems = new Map();
+        for (const item of rawItems.slice(0, 20)) {
+          const itemProductId = item?.productId;
+          if (!itemProductId) return fail("Missing productId.");
+          const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
+          mergedItems.set(itemProductId, (mergedItems.get(itemProductId) || 0) + qty);
+        }
+
+        const orderItems = [];
+        for (const [itemProductId, qty] of mergedItems.entries()) {
+          const product = await tablesDB.getRow({
             databaseId: DB,
             tableId: T.products,
-            rowId: productId,
-            data: { stock: newStock },
+            rowId: itemProductId,
           });
-        } catch (e) {
-          log(`stock update note: ${e.message}`);
+          if (product.status !== "approved") {
+            return fail(`${product.title || "A product"} is not available for purchase.`);
+          }
+          if ((product.stock || 0) < qty) {
+            return fail(`Not enough stock available for ${product.title || "a product"}.`);
+          }
+          orderItems.push({
+            product,
+            quantity: qty,
+            subtotal: Number(product.price || 0) * qty,
+          });
         }
-        await notify(product.sellerId, "New order", `${buyerName} ordered ${product.title}.`, "/storefront/orders");
-        return res.json({ ok: true, order });
+
+        const deliveryFee = await marketplaceDeliveryFee();
+        const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+        assertPaidAmount(subtotal + deliveryFee);
+        await recordPayment();
+        const buyerName = await profileName(tablesDB, callerId);
+        const orderGroupId = ID.unique();
+        const orders = [];
+
+        for (const [index, item] of orderItems.entries()) {
+          const { product, quantity: qty, subtotal: lineSubtotal } = item;
+          const lineDeliveryFee = index === 0 ? deliveryFee : 0;
+          const sellerPerms =
+            product.sellerId === "homiva-admin"
+              ? [
+                  Permission.read(Role.team("admins")),
+                  Permission.update(Role.team("admins")),
+                ]
+              : [
+                  Permission.read(Role.user(product.sellerId)),
+                  Permission.update(Role.user(product.sellerId)),
+                ];
+          const order = await tablesDB.createRow({
+            databaseId: DB,
+            tableId: T.orders,
+            rowId: ID.unique(),
+            data: {
+              buyerId: callerId,
+              buyerName,
+              sellerId: product.sellerId,
+              productId: product.$id,
+              productTitle: product.title,
+              quantity: qty,
+              amount: lineSubtotal + lineDeliveryFee,
+              subtotal: lineSubtotal,
+              deliveryFee: lineDeliveryFee,
+              orderGroupId,
+              status: "paid",
+              phone: phone || "",
+              address: secureAddress || address || "",
+              secureAddress: secureAddress || address || "",
+              paymentRef: reference,
+            },
+            permissions: [
+              ...userPerms,
+              ...sellerPerms,
+            ],
+          });
+          orders.push(order);
+
+          try {
+            const newStock = Math.max(0, (product.stock || 0) - qty);
+            await tablesDB.updateRow({
+              databaseId: DB,
+              tableId: T.products,
+              rowId: product.$id,
+              data: { stock: newStock },
+            });
+          } catch (e) {
+            log(`stock update note: ${e.message}`);
+          }
+          if (product.sellerId && product.sellerId !== "homiva-admin") {
+            await notify(product.sellerId, "New order", `${buyerName} ordered ${product.title}.`, "/orders");
+          }
+        }
+        return res.json({ ok: true, orders, orderGroupId });
       }
 
       case "subscription": {
-        const { plan, storefrontId } = metadata;
+        const { plan, storefrontId, partnerCompanyId, targetType, targetId } = metadata;
         if (!plan || !(plan in PLAN_PRICES)) return fail("Invalid plan.");
         assertPaidAmount(PLAN_PRICES[plan]);
-        if (storefrontId) {
+        const resolvedTargetType = targetType || (partnerCompanyId ? "partner_company" : "storefront");
+        const resolvedTargetId = targetId || partnerCompanyId || storefrontId || "";
+        if (resolvedTargetType === "partner_company") {
+          if (!resolvedTargetId) return fail("Missing partner company id.");
+          const company = await tablesDB.getRow({
+            databaseId: DB,
+            tableId: T.partnerCompanies,
+            rowId: resolvedTargetId,
+          });
+          if (company.ownerId !== callerId) {
+            return fail("You can only subscribe your own partner company profile.", 403);
+          }
+          if (company.status !== "approved") {
+            return fail("Partner company must be approved before subscription can publish it.");
+          }
+        } else if (storefrontId) {
           const store = await tablesDB.getRow({
             databaseId: DB,
             tableId: T.storefronts,
@@ -351,6 +439,8 @@ export default async ({ req, res, log, error }) => {
           data: {
             userId: callerId,
             storefrontId: storefrontId || "",
+            targetType: resolvedTargetType,
+            targetId: resolvedTargetId,
             plan,
             amount: amountKES,
             status: "active",
@@ -360,7 +450,22 @@ export default async ({ req, res, log, error }) => {
           },
           permissions: [...userPerms, Permission.update(Role.user(callerId))],
         });
-        if (storefrontId) {
+        if (resolvedTargetType === "partner_company") {
+          try {
+            await tablesDB.updateRow({
+              databaseId: DB,
+              tableId: T.partnerCompanies,
+              rowId: resolvedTargetId,
+              data: {
+                plan,
+                subscriptionStatus: "active",
+                subscriptionExpiry: expiry.toISOString(),
+              },
+            });
+          } catch (e) {
+            log(`partner company plan update note: ${e.message}`);
+          }
+        } else if (storefrontId) {
           try {
             await tablesDB.updateRow({
               databaseId: DB,

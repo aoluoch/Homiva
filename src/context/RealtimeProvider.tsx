@@ -43,6 +43,18 @@ const tableQueryKeys: Partial<Record<TableId, string[][]>> = {
     ["my-service-provider"],
     ["admin", "service-providers"],
   ],
+  [TABLES.partnerCompanies]: [
+    ["partner-companies"],
+    ["partner-company"],
+    ["my-partner-company"],
+    ["admin", "partner-companies"],
+    ["admin", "stats"],
+  ],
+  [TABLES.partnerPortfolioImages]: [
+    ["partner-portfolio"],
+    ["my-partner-portfolio"],
+    ["partner-company"],
+  ],
   [TABLES.invoices]: [
     ["my-invoices"],
     ["provider-invoices"],
@@ -73,7 +85,13 @@ const tableQueryKeys: Partial<Record<TableId, string[][]>> = {
     ["admin", "stats"],
   ],
   [TABLES.orders]: [["seller-orders"], ["my-orders"], ["admin", "stats"]],
-  [TABLES.subscriptions]: [["my-storefront"], ["admin", "stats"]],
+  [TABLES.appSettings]: [["marketplace", "delivery-fee"]],
+  [TABLES.subscriptions]: [
+    ["my-storefront"],
+    ["my-partner-company"],
+    ["partner-companies"],
+    ["admin", "stats"],
+  ],
   [TABLES.messages]: [["threads"], ["thread"]],
   [TABLES.notifications]: [["notifications"], ["notifications-unread"]],
   [TABLES.disputes]: [["my-disputes"], ["admin", "disputes"], ["admin", "stats"]],

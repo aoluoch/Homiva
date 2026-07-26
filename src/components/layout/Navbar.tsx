@@ -14,6 +14,7 @@ import {
   Bell,
   MessagesSquare,
   ShoppingBag,
+  ShoppingCart,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import { cn, initials } from "@/lib/utils";
 import { APPLICABLE_ROLES, TEAMS, appwriteConfig } from "@/lib/config";
 import { filePreview } from "@/lib/appwrite";
 import { useUnreadCount } from "@/hooks/useNotifications";
+import { useCart } from "@/context/CartContext";
 
 const navLinks = [
   { to: "/properties?type=sale", label: "Buy" },
@@ -42,7 +44,7 @@ const navLinks = [
   { to: "/properties?type=airbnb", label: "Airbnb" },
   { to: "/services", label: "Services" },
   { to: "/marketplace", label: "Marketplace" },
-  { to: "/stores", label: "Stores" },
+  { to: "/partners", label: "Partners" },
 ];
 
 export function Navbar() {
@@ -51,10 +53,15 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const canManageListings = APPLICABLE_ROLES.some(
-    (r) => r.key !== "providers" && roles.includes(r.team),
+    (r) =>
+      ["agents", "landlords", "airbnbOwners"].includes(r.key) &&
+      roles.includes(r.team),
   );
-  const isProvider = roles.includes(TEAMS.providers);
+  const isPartner = [TEAMS.movers, TEAMS.cleaningCompanies, TEAMS.interiorDesigners].some((team) =>
+    roles.includes(team),
+  );
   const { data: unread = 0 } = useUnreadCount();
+  const { count: cartCount } = useCart();
 
   const handleLogout = async () => {
     await logout();
@@ -104,6 +111,21 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="relative"
+          >
+            <Link to="/cart" aria-label="Shopping cart">
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">
+                  {cartCount > 9 ? "9+" : cartCount}
+                </span>
+              )}
+            </Link>
+          </Button>
           {user ? (
             <>
               <Button
@@ -169,24 +191,24 @@ export function Navbar() {
                   <DropdownMenuItem onClick={() => navigate("/orders")}>
                     <ShoppingBag /> My Orders
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/cart")}>
+                    <ShoppingCart /> Cart
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/services/requests")}>
                     <Wrench /> My Service Requests
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/trips")}>
                     <CalendarCheck /> My Trips
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/storefront")}>
-                    <Store /> My Storefront
-                  </DropdownMenuItem>
+                  {isPartner && (
+                    <DropdownMenuItem onClick={() => navigate("/partner")}>
+                      <Store /> Partner Dashboard
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   {canManageListings && (
                     <DropdownMenuItem onClick={() => navigate("/dashboard")}>
                       <LayoutDashboard /> Owner Dashboard
-                    </DropdownMenuItem>
-                  )}
-                  {isProvider && (
-                    <DropdownMenuItem onClick={() => navigate("/provider")}>
-                      <Wrench /> Provider Dashboard
                     </DropdownMenuItem>
                   )}
                   {isAdmin && (
@@ -237,6 +259,14 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <Link
+              to="/cart"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+            >
+              <ShoppingCart className="mr-2 inline h-4 w-4" />
+              Cart {cartCount > 0 ? `(${cartCount})` : ""}
+            </Link>
             <Link
               to="/properties"
               onClick={() => setMobileOpen(false)}

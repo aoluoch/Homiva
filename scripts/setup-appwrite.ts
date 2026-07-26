@@ -215,7 +215,9 @@ async function main() {
     ["agents", "Real Estate Agents"],
     ["landlords", "Landlords"],
     ["airbnb_owners", "Airbnb Owners"],
-    ["providers", "Service Providers"],
+    ["movers", "Moving Companies"],
+    ["cleaning_companies", "Cleaning Companies"],
+    ["interior_designers", "Interior Designers & Decor"],
   ]) {
     await safe(`team ${id}`, () => teams.create({ teamId: id, name }));
   }
@@ -317,6 +319,18 @@ async function main() {
     P.readAny,
     P.updateAdmins,
   ]);
+  await createTable("partner_companies", "Partner Companies", [
+    P.createUsers,
+    P.readAny,
+    P.updateAdmins,
+    P.deleteAdmins,
+  ]);
+  await createTable("partner_portfolio_images", "Partner Portfolio Images", [
+    P.createUsers,
+    P.readAny,
+    P.updateAdmins,
+    P.deleteAdmins,
+  ]);
   await createTable("invoices", "Invoices", [
     P.createUsers,
     P.readAdmins,
@@ -341,7 +355,7 @@ async function main() {
     P.deleteAdmins,
   ]);
   await createTable("products", "Products", [
-    P.createUsers,
+    Permission.create(Role.team("admins")),
     P.readAdmins,
     P.updateAdmins,
     P.deleteAdmins,
@@ -358,6 +372,12 @@ async function main() {
   ]);
   await createTable("messages", "Messages", [P.createUsers]);
   await createTable("notifications", "Notifications", [P.createUsers]);
+  await createTable("app_settings", "App Settings", [
+    Permission.create(Role.team("admins")),
+    P.readAny,
+    P.updateAdmins,
+    P.deleteAdmins,
+  ]);
 
   // Module C (buying) + Module G (disputes)
   await createTable("disputes", "Disputes", [
@@ -434,6 +454,15 @@ async function main() {
     ["draft", "pending", "approved", "rejected"],
     "pending",
   );
+  await enumCol(
+    "properties",
+    "locationVerificationStatus",
+    ["pending", "verified", "rejected"],
+    "pending",
+  );
+  await dt("properties", "locationVerifiedAt");
+  await str("properties", "locationVerifiedBy", 64);
+  await str("properties", "locationVerificationNote", 1000);
   await str("properties", "ownerId", 64, true);
   await str("properties", "ownerName", 255);
   await str("properties", "ownerRole", 64);
@@ -508,6 +537,8 @@ async function main() {
   await str("service_requests", "status", 32);
   await str("service_requests", "providerId", 64);
   await str("service_requests", "providerName", 255);
+  await str("service_requests", "assignedTo", 255);
+  await str("service_requests", "adminNote", 2000);
   await int("service_requests", "quotedAmount", false, 0);
   await bool("service_requests", "emergency", false);
   await str("service_requests", "paymentRef", 128);
@@ -519,6 +550,48 @@ async function main() {
   await str("service_providers", "county", 64);
   await bool("service_providers", "verified", false);
   await int("service_providers", "rating", false, 0);
+
+  // partner_companies
+  await str("partner_companies", "ownerId", 64, true);
+  await str("partner_companies", "role", 64, true);
+  await str("partner_companies", "name", 255, true);
+  await str("partner_companies", "description", 3000);
+  await enumCol(
+    "partner_companies",
+    "category",
+    ["movers", "cleaning_company", "interior_design_decor"],
+    "movers",
+  );
+  await str("partner_companies", "logoFileId", 64);
+  await str("partner_companies", "bannerFileId", 64);
+  await str("partner_companies", "phone", 32);
+  await str("partner_companies", "email", 255);
+  await str("partner_companies", "county", 64);
+  await str("partner_companies", "town", 128);
+  await enumCol(
+    "partner_companies",
+    "status",
+    ["pending", "approved", "rejected", "suspended"],
+    "pending",
+  );
+  await bool("partner_companies", "verified", false);
+  await bool("partner_companies", "featured", false);
+  await str("partner_companies", "plan", 32);
+  await enumCol(
+    "partner_companies",
+    "subscriptionStatus",
+    ["none", "active", "expired", "cancelled"],
+    "none",
+  );
+  await dt("partner_companies", "subscriptionExpiry");
+  await int("partner_companies", "rating", false, 0);
+
+  // partner_portfolio_images
+  await str("partner_portfolio_images", "partnerCompanyId", 64, true);
+  await str("partner_portfolio_images", "ownerId", 64, true);
+  await str("partner_portfolio_images", "fileId", 64, true);
+  await str("partner_portfolio_images", "caption", 255);
+  await int("partner_portfolio_images", "order", false, 0);
 
   // invoices
   await str("invoices", "userId", 64, true);
@@ -540,8 +613,8 @@ async function main() {
   // reviews
   await str("reviews", "userId", 64, true);
   await str("reviews", "userName", 255);
-  await enumCol("reviews", "targetType", ["property", "provider", "service", "product", "storefront"], "property");
-  await updateEnumCol("reviews", "targetType", ["property", "provider", "service", "product", "storefront"], "property");
+  await enumCol("reviews", "targetType", ["property", "provider", "service", "product", "storefront", "partner_company"], "property");
+  await updateEnumCol("reviews", "targetType", ["property", "provider", "service", "product", "storefront", "partner_company"], "property");
   await str("reviews", "targetId", 64, true);
   await int("reviews", "rating", false, 5);
   await str("reviews", "comment", 2000);
@@ -611,14 +684,20 @@ async function main() {
   await str("orders", "productTitle", 255);
   await int("orders", "quantity", false, 1);
   await int("orders", "amount", false, 0);
+  await int("orders", "subtotal", false, 0);
+  await int("orders", "deliveryFee", false, 0);
+  await str("orders", "orderGroupId", 64);
   await enumCol("orders", "status", ["pending", "paid", "shipped", "delivered", "cancelled"], "pending");
   await str("orders", "phone", 32);
   await str("orders", "address", 512);
+  await str("orders", "secureAddress", 512);
   await str("orders", "paymentRef", 128);
 
   // subscriptions
   await str("subscriptions", "userId", 64, true);
   await str("subscriptions", "storefrontId", 64);
+  await enumCol("subscriptions", "targetType", ["partner_company", "storefront"], "partner_company");
+  await str("subscriptions", "targetId", 64);
   await str("subscriptions", "plan", 32);
   await int("subscriptions", "amount", false, 0);
   await enumCol("subscriptions", "status", ["none", "active", "expired", "cancelled"], "active");
@@ -643,6 +722,11 @@ async function main() {
   await str("notifications", "body", 1000);
   await str("notifications", "link", 512);
   await bool("notifications", "read", false);
+
+  // app_settings
+  await str("app_settings", "key", 128, true);
+  await str("app_settings", "value", 512, true);
+  await str("app_settings", "label", 255);
 
   // disputes
   await str("disputes", "raisedBy", 64, true);
@@ -689,13 +773,80 @@ async function main() {
 
   // 6) Indexes (wait for columns to finish processing first)
   console.log("\nWaiting for columns to become available...");
-  await sleep(4000);
+  {
+    const watch = [
+      ["properties", "locationVerificationStatus"],
+      ["partner_companies", "ownerId"],
+      ["partner_companies", "subscriptionStatus"],
+      ["partner_portfolio_images", "partnerCompanyId"],
+      ["subscriptions", "targetType"],
+      ["app_settings", "key"],
+    ] as const;
+    for (let attempt = 1; attempt <= 40; attempt++) {
+      let pending = 0;
+      for (const [tableId, key] of watch) {
+        try {
+          const cols = await tablesDB.listColumns({ databaseId: DB, tableId });
+          const col = cols.columns.find((c) => c.key === key);
+          if (!col || col.status !== "available") pending += 1;
+        } catch {
+          pending += 1;
+        }
+      }
+      if (pending === 0) {
+        console.log("  columns ready");
+        break;
+      }
+      if (attempt === 40) {
+        console.warn(`  ! ${pending} watched columns still not available after waiting`);
+      } else {
+        await sleep(5000);
+      }
+    }
+  }
+
+  // Ensure marketplace products are admin-managed only (idempotent permission update).
+  await safe("products permissions (admin create)", () =>
+    tablesDB.updateTable({
+      databaseId: DB,
+      tableId: "products",
+      name: "Products",
+      permissions: [
+        Permission.create(Role.team("admins")),
+        Permission.read(Role.team("admins")),
+        Permission.update(Role.team("admins")),
+        Permission.delete(Role.team("admins")),
+      ],
+      rowSecurity: true,
+      enabled: true,
+    }),
+  );
+
+  await safe("default marketplace delivery fee", () =>
+    tablesDB.createRow({
+      databaseId: DB,
+      tableId: "app_settings",
+      rowId: "marketplace_delivery_fee",
+      data: {
+        key: "marketplace_delivery_fee_kes",
+        value: "300",
+        label: "Marketplace delivery fee",
+      } as Record<string, unknown>,
+      permissions: [
+        P.readAny,
+        P.updateAdmins,
+        P.deleteAdmins,
+      ],
+    }),
+  );
+
   console.log("Indexes:");
   await index("profiles", "idx_userId", IndexType.Key, ["userId"]);
   await index("role_applications", "idx_userId", IndexType.Key, ["userId"]);
   await index("role_applications", "idx_role", IndexType.Key, ["role"]);
   await index("role_applications", "idx_status", IndexType.Key, ["status"]);
   await index("properties", "idx_status", IndexType.Key, ["status"]);
+  await index("properties", "idx_location_verification", IndexType.Key, ["locationVerificationStatus"]);
   await index("properties", "idx_type", IndexType.Key, ["listingType"]);
   await index("properties", "idx_county", IndexType.Key, ["county"]);
   await index("properties", "idx_price", IndexType.Key, ["price"]);
@@ -718,6 +869,13 @@ async function main() {
   await index("service_requests", "idx_category", IndexType.Key, ["category"]);
   await index("service_requests", "idx_provider", IndexType.Key, ["providerId"]);
   await index("service_providers", "idx_user", IndexType.Key, ["userId"]);
+  await index("partner_companies", "idx_owner", IndexType.Key, ["ownerId"]);
+  await index("partner_companies", "idx_role", IndexType.Key, ["role"]);
+  await index("partner_companies", "idx_status", IndexType.Key, ["status"]);
+  await index("partner_companies", "idx_category", IndexType.Key, ["category"]);
+  await index("partner_companies", "idx_subscription", IndexType.Key, ["subscriptionStatus"]);
+  await index("partner_portfolio_images", "idx_partner", IndexType.Key, ["partnerCompanyId"]);
+  await index("partner_portfolio_images", "idx_owner", IndexType.Key, ["ownerId"]);
   await index("bookings", "idx_prop", IndexType.Key, ["propertyId"]);
   await index("bookings", "idx_guest", IndexType.Key, ["guestId"]);
   await index("bookings", "idx_host", IndexType.Key, ["hostId"]);
@@ -733,8 +891,11 @@ async function main() {
   await index("products", "idx_title_ft", IndexType.Fulltext, ["title"]);
   await index("orders", "idx_buyer", IndexType.Key, ["buyerId"]);
   await index("orders", "idx_seller", IndexType.Key, ["sellerId"]);
+  await index("orders", "idx_order_group", IndexType.Key, ["orderGroupId"]);
+  await index("app_settings", "idx_key", IndexType.Key, ["key"]);
   await index("subscriptions", "idx_user", IndexType.Key, ["userId"]);
   await index("subscriptions", "idx_store", IndexType.Key, ["storefrontId"]);
+  await index("subscriptions", "idx_target", IndexType.Key, ["targetType", "targetId"]);
   await index("messages", "idx_thread", IndexType.Key, ["threadId"]);
   await index("messages", "idx_receiver", IndexType.Key, ["receiverId"]);
   await index("reviews", "idx_target", IndexType.Key, ["targetId"]);

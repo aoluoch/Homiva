@@ -17,6 +17,8 @@ const T = {
   roleApplications: "role_applications",
   properties: "properties",
   serviceProviders: "service_providers",
+  serviceRequests: "service_requests",
+  partnerCompanies: "partner_companies",
   storefronts: "storefronts",
   products: "products",
   auditLogs: "audit_logs",
@@ -71,8 +73,13 @@ export default async ({ req, res, log, error }) => {
     applicationId,
     propertyId,
     providerId,
+    partnerCompanyId,
+    serviceRequestId,
     storefrontId,
     productId,
+    status,
+    quotedAmount,
+    assignedTo,
     note,
   } = body;
 
@@ -200,6 +207,9 @@ export default async ({ req, res, log, error }) => {
           tableId: T.properties,
           rowId: propertyId,
         });
+        if (prop.locationVerificationStatus !== "verified") {
+          return fail("Physical location must be verified before publishing this property.");
+        }
         const perms = new Set(prop.$permissions || []);
         perms.add('read("any")'); // make approved listing publicly readable
         await tablesDB.updateRow({
@@ -210,6 +220,49 @@ export default async ({ req, res, log, error }) => {
           permissions: [...perms],
         });
         await logAction("property", propertyId, `Approved property "${prop.title || propertyId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "verifyPropertyLocation": {
+        const prop = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+        });
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+          data: {
+            locationVerificationStatus: "verified",
+            locationVerifiedAt: new Date().toISOString(),
+            locationVerifiedBy: callerId,
+            locationVerificationNote: note || "",
+          },
+        });
+        await logAction("property", propertyId, `Verified physical location for "${prop.title || propertyId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "rejectPropertyLocation": {
+        const prop = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+        });
+        const perms = (prop.$permissions || []).filter((p) => p !== 'read("any")');
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+          data: {
+            status: "pending",
+            locationVerificationStatus: "rejected",
+            locationVerificationNote: note || "Physical location could not be verified.",
+          },
+          permissions: perms,
+        });
+        await logAction("property", propertyId, `Rejected physical location for "${prop.title || propertyId}".`);
         return res.json({ ok: true });
       }
 
@@ -262,6 +315,82 @@ export default async ({ req, res, log, error }) => {
           data: { verified: false },
         });
         await logAction("service_provider", providerId, `Unverified provider "${provider.businessName || providerId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "approvePartnerCompany": {
+        const company = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+        });
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+          data: { status: "approved", verified: true },
+        });
+        await logAction("partner_company", partnerCompanyId, `Approved partner company "${company.name || partnerCompanyId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "rejectPartnerCompany": {
+        const company = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+        });
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+          data: { status: "rejected", verified: false },
+        });
+        await logAction("partner_company", partnerCompanyId, `Rejected partner company "${company.name || partnerCompanyId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "suspendPartnerCompany": {
+        const company = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+        });
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+          data: { status: "suspended", verified: false },
+        });
+        await logAction("partner_company", partnerCompanyId, `Suspended partner company "${company.name || partnerCompanyId}".`);
+        return res.json({ ok: true });
+      }
+
+      case "featurePartnerCompany":
+      case "unfeaturePartnerCompany": {
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.partnerCompanies,
+          rowId: partnerCompanyId,
+          data: { featured: action === "featurePartnerCompany" },
+        });
+        await logAction("partner_company", partnerCompanyId, action === "featurePartnerCompany" ? "Featured partner company." : "Removed partner feature.");
+        return res.json({ ok: true });
+      }
+
+      case "updateServiceRequest": {
+        await tablesDB.updateRow({
+          databaseId: DB,
+          tableId: T.serviceRequests,
+          rowId: serviceRequestId,
+          data: {
+            ...(status ? { status } : {}),
+            ...(quotedAmount !== undefined ? { quotedAmount } : {}),
+            ...(assignedTo !== undefined ? { assignedTo } : {}),
+            ...(note !== undefined ? { adminNote: note } : {}),
+          },
+        });
+        await logAction("service_request", serviceRequestId, `Updated service request to ${status || "current"} status.`);
         return res.json({ ok: true });
       }
 

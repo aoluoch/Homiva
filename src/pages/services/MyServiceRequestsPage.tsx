@@ -26,8 +26,10 @@ const STATUS_VARIANT: Record<
   string,
   "default" | "secondary" | "success" | "warning" | "destructive"
 > = {
-  pending: "warning",
-  accepted: "secondary",
+  requested: "warning",
+  reviewed: "secondary",
+  quoted: "default",
+  scheduled: "secondary",
   in_progress: "secondary",
   completed: "default",
   paid: "success",
@@ -79,7 +81,7 @@ export default function MyServiceRequestsPage() {
         <EmptyState
           icon={ClipboardList}
           title="No requests yet"
-          description="Request a service to get an instant estimate from verified providers."
+          description="Request a Homiva-operated service to get an instant estimate."
           action={
             <Button asChild>
               <Link to="/services/request">Request a service</Link>
@@ -113,9 +115,9 @@ export default function MyServiceRequestsPage() {
                         {formatKES(r.estimatedMax ?? 0)}
                       </span>
                     )}
-                    {r.providerName && (
+                    {r.assignedTo && (
                       <span className="text-muted-foreground">
-                        {" "}· {r.providerName}
+                        {" "}· {r.assignedTo}
                       </span>
                     )}
                   </p>
@@ -125,8 +127,9 @@ export default function MyServiceRequestsPage() {
                   <ServiceRequestContact request={r} />
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  {(r.status === "completed" || r.status === "accepted" ||
-                    r.status === "in_progress") && (
+                  {(r.status === "quoted" ||
+                    r.status === "scheduled" ||
+                    r.status === "completed") && (
                     <Button
                       onClick={() => onPay(r)}
                       disabled={pay.isPending}
@@ -142,7 +145,7 @@ export default function MyServiceRequestsPage() {
                       )}
                     </Button>
                   )}
-                  {r.status === "pending" && (
+                  {r.status === "requested" && (
                     <Button
                       variant="outline"
                       onClick={() =>

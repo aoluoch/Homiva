@@ -50,8 +50,13 @@ export default function OrdersPage() {
                 <div>
                   <p className="font-medium">{o.productTitle}</p>
                   <p className="text-sm text-muted-foreground">
-                    Qty {o.quantity} · {formatKES(o.amount)}
+                    Qty {o.quantity} · {formatKES(o.subtotal || o.amount)}
                   </p>
+                  {(o.deliveryFee || 0) > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Delivery {formatKES(o.deliveryFee || 0)}
+                    </p>
+                  )}
                   <p className="mt-1 text-xs text-muted-foreground">
                     {timeAgo(o.$createdAt)}
                   </p>

@@ -47,6 +47,8 @@ export const TABLES = {
   inquiries: "inquiries",
   serviceRequests: "service_requests",
   serviceProviders: "service_providers",
+  partnerCompanies: "partner_companies",
+  partnerPortfolioImages: "partner_portfolio_images",
   invoices: "invoices",
   payments: "payments",
   reviews: "reviews",
@@ -59,6 +61,7 @@ export const TABLES = {
   subscriptions: "subscriptions",
   messages: "messages",
   notifications: "notifications",
+  appSettings: "app_settings",
   // --- Module C (buying) + Module G (disputes) ---
   disputes: "disputes",
   mortgageEnquiries: "mortgage_enquiries",
@@ -71,7 +74,9 @@ export const TEAMS = {
   agents: "agents",
   landlords: "landlords",
   airbnbOwners: "airbnb_owners",
-  providers: "providers",
+  movers: "movers",
+  cleaningCompanies: "cleaning_companies",
+  interiorDesigners: "interior_designers",
 } as const;
 
 export type RoleKey = keyof typeof TEAMS;
@@ -98,11 +103,25 @@ export const APPLICABLE_ROLES = [
     description: "List and manage short-stay properties and bookings.",
   },
   {
-    key: "providers" as const,
-    team: TEAMS.providers,
-    label: "Service Provider",
+    key: "movers" as const,
+    team: TEAMS.movers,
+    label: "Moving Company",
     description:
-      "Offer maintenance and cleaning services to Homiva customers after verification.",
+      "Apply to publish a verified moving company profile and work portfolio.",
+  },
+  {
+    key: "cleaningCompanies" as const,
+    team: TEAMS.cleaningCompanies,
+    label: "Cleaning Company",
+    description:
+      "Apply to publish a cleaning company profile and customer work portfolio.",
+  },
+  {
+    key: "interiorDesigners" as const,
+    team: TEAMS.interiorDesigners,
+    label: "Interior Design & Decor",
+    description:
+      "Apply to publish an interior design or decor company profile and portfolio.",
   },
 ];
 
@@ -141,11 +160,11 @@ export interface ServiceCategory {
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
   {
-    key: "cleaning",
+    key: "mama_fua",
     label: "Cleaning (Mama Fua)",
     icon: "Sparkles",
     baseFee: 800,
-    problems: ["General cleaning", "Deep cleaning", "Laundry & ironing", "Post-construction", "Move-in / move-out"],
+    problems: ["Laundry & ironing", "House cleaning", "Deep cleaning", "Move-in / move-out"],
   },
   {
     key: "plumbing",
@@ -155,60 +174,11 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     problems: ["Leaking pipe", "Blocked drain", "Toilet repair", "Water heater", "Tap / faucet install"],
   },
   {
-    key: "electrical",
-    label: "Electrical",
-    icon: "Zap",
-    baseFee: 1200,
-    problems: ["Wiring fault", "Socket / switch", "Lighting install", "Backup / inverter", "Appliance connection"],
-  },
-  {
-    key: "painting",
-    label: "Painting",
-    icon: "PaintRoller",
-    baseFee: 1500,
-    problems: ["Interior painting", "Exterior painting", "Touch-ups", "Waterproofing"],
-  },
-  {
-    key: "pest_control",
-    label: "Pest Control",
-    icon: "Bug",
-    baseFee: 1500,
-    problems: ["Cockroaches", "Bedbugs", "Rodents", "Termites", "Fumigation"],
-  },
-  {
-    key: "movers",
-    label: "Movers",
-    icon: "Truck",
-    baseFee: 3000,
-    problems: ["Local move", "Long-distance move", "Office relocation", "Single item"],
-  },
-  {
-    key: "gardening",
-    label: "Gardening & Landscaping",
-    icon: "Trees",
-    baseFee: 1000,
-    problems: ["Lawn mowing", "Hedge trimming", "Landscaping", "Tree cutting"],
-  },
-  {
-    key: "repairs",
-    label: "General Repairs",
+    key: "maintenance",
+    label: "Repairs & Maintenance",
     icon: "Hammer",
     baseFee: 1000,
-    problems: ["Carpentry", "Masonry", "Door / lock", "Furniture assembly", "Tiling"],
-  },
-  {
-    key: "security",
-    label: "Security",
-    icon: "ShieldCheck",
-    baseFee: 2000,
-    problems: ["CCTV install", "Alarm system", "Electric fence", "Access control"],
-  },
-  {
-    key: "interior_design",
-    label: "Interior Design",
-    icon: "Armchair",
-    baseFee: 5000,
-    problems: ["Consultation", "Space planning", "Full design", "Staging"],
+    problems: ["Electrical repair", "Carpentry", "Painting", "Door / lock", "Tiling", "General repair"],
   },
 ];
 
@@ -237,11 +207,35 @@ export const ROLE_DOCUMENT_REQUIREMENTS: Record<string, string[]> = {
     "National ID or passport",
     "Proof of ownership, lease agreement, or written owner authorization",
   ],
-  [TEAMS.providers]: [
+  [TEAMS.movers]: [
+    "National ID or passport",
+    "Business registration certificate or business permit",
+    "KRA PIN certificate",
+    "Vehicle logbook, lease agreement, or fleet ownership proof",
+  ],
+  [TEAMS.cleaningCompanies]: [
     "National ID or passport",
     "Business registration certificate or business permit",
     "KRA PIN certificate",
   ],
+  [TEAMS.interiorDesigners]: [
+    "National ID or passport",
+    "Business registration certificate or business permit",
+    "KRA PIN certificate",
+    "Portfolio or company profile document",
+  ],
+};
+
+export const PARTNER_CATEGORIES = [
+  { key: "movers", label: "Movers" },
+  { key: "cleaning_company", label: "Cleaning Company" },
+  { key: "interior_design_decor", label: "Interior Design & Decor" },
+] as const;
+
+export const PARTNER_ROLE_CATEGORY: Record<string, (typeof PARTNER_CATEGORIES)[number]["key"]> = {
+  [TEAMS.movers]: "movers",
+  [TEAMS.cleaningCompanies]: "cleaning_company",
+  [TEAMS.interiorDesigners]: "interior_design_decor",
 };
 
 /** Size multiplier applied to the price estimate. */
@@ -276,6 +270,10 @@ export const MARKETPLACE_CATEGORIES = [
 
 export const PRODUCT_CONDITIONS = ["new", "refurbished", "used"] as const;
 
+export const MARKETPLACE_DELIVERY_FEE_SETTING = "marketplace_delivery_fee_kes";
+export const MARKETPLACE_DELIVERY_FEE_ROW_ID = "marketplace_delivery_fee";
+export const DEFAULT_MARKETPLACE_DELIVERY_FEE_KES = 300;
+
 // ---------------------------------------------------------------------------
 // Business Storefronts + Subscriptions (Module F)
 // ---------------------------------------------------------------------------
@@ -292,22 +290,22 @@ export interface SubscriptionPlan {
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
-    key: "free",
-    label: "Starter",
-    price: 0,
-    productLimit: 5,
-    features: ["Basic storefront", "Up to 5 products", "Customer reviews"],
+    key: "basic",
+    label: "Basic",
+    price: 2500,
+    productLimit: 0,
+    features: ["Published company profile", "Contact details", "Customer reviews"],
     featured: false,
   },
   {
     key: "pro",
     label: "Pro",
-    price: 2500,
-    productLimit: 50,
+    price: 5000,
+    productLimit: 0,
     features: [
-      "Branded storefront",
-      "Up to 50 products",
-      "Analytics dashboard",
+      "Published company profile",
+      "Portfolio gallery",
+      "Priority directory placement",
       "Priority support",
     ],
     featured: true,
@@ -315,11 +313,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     key: "premium",
     label: "Premium",
-    price: 6000,
-    productLimit: 500,
+    price: 9000,
+    productLimit: 0,
     features: [
       "Everything in Pro",
-      "Up to 500 products",
       "Promoted / featured placement",
       "Verified badge",
     ],
@@ -327,15 +324,12 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   },
 ];
 
+/** Legacy storefront categories retained for old unmounted storefront screens. */
 export const STOREFRONT_CATEGORIES = [
   "Furniture Vendor",
   "Appliance Store",
-  "Home Décor",
+  "Home Decor",
   "Building Supplies",
-  "Interior Design Studio",
-  "Movers & Logistics",
-  "Cleaning Company",
-  "General Contractor",
 ] as const;
 
 // ---------------------------------------------------------------------------

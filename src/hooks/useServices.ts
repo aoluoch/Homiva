@@ -7,6 +7,11 @@ import { usePayment } from "@/hooks/usePayment";
 import type { ServiceProvider, ServiceRequest } from "@/types/models";
 
 const DB = appwriteConfig.databaseId;
+const SERVICE_PROVIDER_TEAMS = [
+  TEAMS.movers,
+  TEAMS.cleaningCompanies,
+  TEAMS.interiorDesigners,
+] as const;
 
 export interface ServiceRequestInput {
   category: string;
@@ -94,15 +99,17 @@ export function useCreateServiceRequest() {
           userId: user.$id,
           userName: profile?.name ?? user.name,
           photoIds,
-          status: "pending",
+          status: "requested",
         },
         permissions: [
           Permission.read(Role.user(user.$id)),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
           // Providers need row-level access to discover and accept open jobs.
-          Permission.read(Role.team(TEAMS.providers)),
-          Permission.update(Role.team(TEAMS.providers)),
+          ...SERVICE_PROVIDER_TEAMS.flatMap((team) => [
+            Permission.read(Role.team(team)),
+            Permission.update(Role.team(team)),
+          ]),
         ],
       }) as unknown as ServiceRequest;
     },
@@ -209,13 +216,13 @@ export function useMyServiceRequests() {
   });
 }
 
-/** Open (unassigned) requests a provider can accept, optionally by category. */
+/** Legacy provider queue retained for compatibility with old data. */
 export function useOpenServiceRequests(categories?: string[]) {
   return useQuery({
     queryKey: ["open-service-requests", categories],
     queryFn: async () => {
       const queries = [
-        Query.equal("status", "pending"),
+        Query.equal("status", "requested"),
         Query.orderDesc("$createdAt"),
         Query.limit(100),
       ];
@@ -253,7 +260,7 @@ export function useProviderJobs() {
   });
 }
 
-/** Provider accepts a job and optionally sets a quote. */
+/** Legacy provider acceptance retained for compatibility with old data. */
 export function useAcceptJob() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
@@ -312,6 +319,58 @@ export function useUpdateServiceStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["provider-jobs"] });
       qc.invalidateQueries({ queryKey: ["my-service-requests"] });
+    },
+  });
+}
+
+/** Admin queue for Homiva-operated service requests. */
+export function useAdminServiceRequests() {
+  return useQuery({
+    queryKey: ["admin", "service-requests"],
+    queryFn: async () => {
+      const res = await tablesDB.listRows({
+        databaseId: DB,
+        tableId: TABLES.serviceRequests,
+        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
+      });
+      return res.rows as unknown as ServiceRequest[];
+    },
+  });
+}
+
+/** Admin update for Homiva-operated service dispatch, quoting and status. */
+export function useAdminUpdateServiceRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      status,
+      quotedAmount,
+      assignedTo,
+      adminNote,
+    }: {
+      requestId: string;
+      status?: string;
+      quotedAmount?: number;
+      assignedTo?: string;
+      adminNote?: string;
+    }) => {
+      return tablesDB.updateRow({
+        databaseId: DB,
+        tableId: TABLES.serviceRequests,
+        rowId: requestId,
+        data: {
+          ...(status ? { status } : {}),
+          ...(quotedAmount !== undefined ? { quotedAmount } : {}),
+          ...(assignedTo !== undefined ? { assignedTo } : {}),
+          ...(adminNote !== undefined ? { adminNote } : {}),
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "service-requests"] });
+      qc.invalidateQueries({ queryKey: ["my-service-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin", "stats"] });
     },
   });
 }
