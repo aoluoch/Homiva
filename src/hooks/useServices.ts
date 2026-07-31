@@ -1,17 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
+import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
 import type { ServiceProvider, ServiceRequest } from "@/types/models";
 
 const DB = appwriteConfig.databaseId;
-const SERVICE_PROVIDER_TEAMS = [
-  TEAMS.movers,
-  TEAMS.cleaningCompanies,
-  TEAMS.interiorDesigners,
-] as const;
 
 export interface ServiceRequestInput {
   category: string;
@@ -101,15 +96,15 @@ export function useCreateServiceRequest() {
           photoIds,
           status: "requested",
         },
+        // Clients may only grant roles they hold (any/users/self). Team roles
+        // like movers are rejected, so open jobs are readable/updatable by any
+        // authenticated user until a provider accepts and permissions tighten.
         permissions: [
           Permission.read(Role.user(user.$id)),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          // Providers need row-level access to discover and accept open jobs.
-          ...SERVICE_PROVIDER_TEAMS.flatMap((team) => [
-            Permission.read(Role.team(team)),
-            Permission.update(Role.team(team)),
-          ]),
+          Permission.read(Role.users()),
+          Permission.update(Role.users()),
         ],
       }) as unknown as ServiceRequest;
     },
@@ -273,8 +268,14 @@ export function useAcceptJob() {
       quotedAmount: number;
     }) => {
       if (!user) throw new Error("You must be logged in.");
-      // Grant the accepting provider row-level read/update.
-      const perms = new Set(request.$permissions ?? []);
+      // Keep existing owner permissions, drop broad users access, add provider.
+      const usersRead = Permission.read(Role.users());
+      const usersUpdate = Permission.update(Role.users());
+      const perms = new Set(
+        (request.$permissions ?? []).filter(
+          (p) => p !== usersRead && p !== usersUpdate,
+        ),
+      );
       perms.add(Permission.read(Role.user(user.$id)));
       perms.add(Permission.update(Role.user(user.$id)));
       return tablesDB.updateRow({
