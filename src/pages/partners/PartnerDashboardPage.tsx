@@ -202,7 +202,7 @@ function ProfileForm({ company }: { company?: import("@/types/models").PartnerCo
 function SubscriptionPanel({ company }: { company: import("@/types/models").PartnerCompany }) {
   const subscribe = useSubscribePartnerCompany();
   return (
-    <div className="mt-6 grid gap-4 md:grid-cols-3">
+    <div className="mt-6 grid max-w-md gap-4">
       {SUBSCRIPTION_PLANS.map((plan) => (
         <Card
           key={plan.key}

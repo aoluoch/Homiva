@@ -288,39 +288,21 @@ export interface SubscriptionPlan {
   featured: boolean;
 }
 
+/** Monthly partner/company publication plan — KES 2,000. */
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     key: "basic",
-    label: "Basic",
-    price: 2500,
-    productLimit: 0,
-    features: ["Published company profile", "Contact details", "Customer reviews"],
-    featured: false,
-  },
-  {
-    key: "pro",
-    label: "Pro",
-    price: 5000,
+    label: "Monthly",
+    price: 2000,
     productLimit: 0,
     features: [
       "Published company profile",
+      "Contact details",
       "Portfolio gallery",
-      "Priority directory placement",
-      "Priority support",
+      "Customer reviews",
+      "Directory listing for 30 days",
     ],
     featured: true,
-  },
-  {
-    key: "premium",
-    label: "Premium",
-    price: 9000,
-    productLimit: 0,
-    features: [
-      "Everything in Pro",
-      "Promoted / featured placement",
-      "Verified badge",
-    ],
-    featured: false,
   },
 ];
 

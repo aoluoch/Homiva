@@ -84,9 +84,10 @@ trust the project so project-local `.codex/config.toml` settings are loaded.
 The admin dashboard requires membership in the `admins` team.
 
 1. Register a normal account in the running app.
-2. Put that account's email in `.env` as `ADMIN_EMAIL`.
-3. Re-run `npm run setup:appwrite` - it will add the account to the `admins`
-   team. (Alternatively, add the user to the `admins` team from the Appwrite
+2. Put that account's email in `.env` as `ADMIN_EMAIL` (comma-separated for
+   multiple admins; `ADMIN_EMAILS` is also accepted).
+3. Re-run `npm run setup:appwrite` - it will add each account to the `admins`
+   team. (Alternatively, add users to the `admins` team from the Appwrite
    console.)
 
 ## Deploying the admin function

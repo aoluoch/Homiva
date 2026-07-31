@@ -41,7 +41,7 @@ const T = {
 };
 
 const VIEWING_FEE_KES = 200;
-const PLAN_PRICES = { basic: 2500, pro: 5000, premium: 9000 };
+const PLAN_PRICES = { basic: 2000 };
 const MARKETPLACE_DELIVERY_FEE_SETTING = "marketplace_delivery_fee_kes";
 const MARKETPLACE_DELIVERY_FEE_ROW_ID = "marketplace_delivery_fee";
 const DEFAULT_MARKETPLACE_DELIVERY_FEE_KES = 300;

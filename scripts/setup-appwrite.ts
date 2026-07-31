@@ -2,8 +2,8 @@
  * Idempotent Appwrite provisioning for Homiva.
  *
  * Creates: the `homiva` database, all core tables (PRD section 11) with columns
- * and indexes, storage buckets, and the role teams. Optionally bootstraps the
- * first admin (ADMIN_EMAIL) into the `admins` team.
+ * and indexes, storage buckets, and the role teams. Optionally bootstraps
+ * admins (ADMIN_EMAIL / ADMIN_EMAILS) into the `admins` team.
  *
  * Usage:  npm run setup:appwrite
  * Requires .env with APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY.
@@ -24,7 +24,23 @@ import {
 const endpoint = process.env.APPWRITE_ENDPOINT!;
 const projectId = process.env.APPWRITE_PROJECT_ID!;
 const apiKey = process.env.APPWRITE_API_KEY!;
-const adminEmail = process.env.ADMIN_EMAIL?.trim();
+
+/** Comma/semicolon/newline-separated emails from ADMIN_EMAIL and/or ADMIN_EMAILS. */
+function parseAdminEmails(): string[] {
+  const raw = [process.env.ADMIN_EMAIL, process.env.ADMIN_EMAILS]
+    .filter(Boolean)
+    .join(",");
+  return [
+    ...new Set(
+      raw
+        .split(/[,;\n]+/)
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+const adminEmails = parseAdminEmails();
 
 if (!endpoint || !projectId || !apiKey) {
   console.error(
@@ -916,17 +932,22 @@ async function main() {
   await index("viewing_requests", "idx_prop", IndexType.Key, ["propertyId"]);
   await index("viewing_requests", "idx_status", IndexType.Key, ["status"]);
 
-  // 7) Bootstrap admin
-  if (adminEmail) {
-    console.log(`\nBootstrapping admin: ${adminEmail}`);
-    try {
-      const list = await users.list({ queries: [Query.equal("email", adminEmail)] });
-      const found = list.users[0];
-      if (!found) {
-        console.warn(
-          `  ! No account found for ${adminEmail}. Register in the app first, then re-run.`,
-        );
-      } else {
+  // 7) Bootstrap admins
+  if (adminEmails.length > 0) {
+    console.log(`\nBootstrapping ${adminEmails.length} admin(s):`);
+    for (const adminEmail of adminEmails) {
+      console.log(`  → ${adminEmail}`);
+      try {
+        const list = await users.list({
+          queries: [Query.equal("email", adminEmail)],
+        });
+        const found = list.users[0];
+        if (!found) {
+          console.warn(
+            `  ! No account found for ${adminEmail}. Register in the app first, then re-run.`,
+          );
+          continue;
+        }
         await safe(`admin membership for ${adminEmail}`, () =>
           teams.createMembership({
             teamId: "admins",
@@ -934,13 +955,15 @@ async function main() {
             roles: ["owner"],
           }),
         );
+      } catch (err) {
+        console.warn(
+          `  ! Admin bootstrap failed for ${adminEmail}: ${(err as Error).message}`,
+        );
       }
-    } catch (err) {
-      console.warn(`  ! Admin bootstrap failed: ${(err as Error).message}`);
     }
   } else {
     console.log(
-      "\nSkip admin bootstrap (set ADMIN_EMAIL in .env to assign the first admin).",
+      "\nSkip admin bootstrap (set ADMIN_EMAIL or ADMIN_EMAILS in .env).",
     );
   }
 

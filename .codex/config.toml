@@ -8,4 +8,4 @@ tool_timeout_sec = 60.0
 
 [mcp_servers.appwrite-api.env]
 APPWRITE_PROJECT_ID = "6a56af86002ae69ae1fc"
-APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1"
+APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1"appwrite mcp
