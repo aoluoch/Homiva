@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
 import {
+  APPLICABLE_ROLES,
   appwriteConfig,
   ROLE_DOCUMENT_REQUIREMENTS,
   TABLES,
-  TEAMS,
 } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { RoleApplication } from "@/types/models";
@@ -36,22 +36,43 @@ async function uploadApplicationDocuments(
   userId: string,
   documents: RoleApplicationDocument[],
 ) {
-  const uploaded = await Promise.all(
-    documents.map(async ({ file }) => {
+  const uploaded: string[] = [];
+  try {
+    for (const { file } of documents) {
       const res = await storage.createFile({
         bucketId: appwriteConfig.buckets.verificationDocuments,
         fileId: ID.unique(),
         file,
         permissions: [
           Permission.read(Role.user(userId)),
-          Permission.read(Role.team(TEAMS.admins)),
           Permission.delete(Role.user(userId)),
         ],
       });
-      return res.$id;
-    }),
-  );
+      uploaded.push(res.$id);
+    }
+  } catch (error) {
+    await Promise.allSettled(
+      uploaded.map((fileId) =>
+        storage.deleteFile({
+          bucketId: appwriteConfig.buckets.verificationDocuments,
+          fileId,
+        }),
+      ),
+    );
+    throw error;
+  }
   return uploaded;
+}
+
+async function deleteApplicationDocuments(documentIds: string[]) {
+  await Promise.allSettled(
+    documentIds.map((fileId) =>
+      storage.deleteFile({
+        bucketId: appwriteConfig.buckets.verificationDocuments,
+        fileId,
+      }),
+    ),
+  );
 }
 
 /** Applications submitted by the current user. */
@@ -94,6 +115,12 @@ export function useApplyForRole() {
       location: RoleApplicationLocation;
     }) => {
       if (!user) throw new Error("You must be logged in to apply.");
+      const applicableRole = APPLICABLE_ROLES.find(
+        (candidate) => candidate.team === role,
+      );
+      if (!applicableRole || applicableRole.label !== roleLabel) {
+        throw new Error("This role is not available for application.");
+      }
       const contact = {
         phone: location.phone.trim(),
         county: location.county.trim(),
@@ -155,34 +182,37 @@ export function useApplyForRole() {
         submittedDocuments,
       );
 
-      return tablesDB.createRow({
-        databaseId: appwriteConfig.databaseId,
-        tableId: TABLES.roleApplications,
-        rowId: ID.unique(),
-        data: {
-          userId: user.$id,
-          userName: profile?.name ?? user.name,
-          userEmail: user.email,
-          role,
-          roleLabel,
-          status: "pending",
-          message: message ?? "",
-          phone: contact.phone,
-          county: contact.county,
-          town: contact.town,
-          address: contact.address,
-          latitude: contact.latitude,
-          longitude: contact.longitude,
-          documentIds,
-          documentLabels: submittedDocuments.map((doc) => doc.label),
-        },
-        permissions: [
-          Permission.read(Role.user(user.$id)),
-          Permission.read(Role.team(TEAMS.admins)),
-          Permission.update(Role.team(TEAMS.admins)),
-          Permission.delete(Role.user(user.$id)),
-        ],
-      });
+      try {
+        return await tablesDB.createRow({
+          databaseId: appwriteConfig.databaseId,
+          tableId: TABLES.roleApplications,
+          rowId: ID.unique(),
+          data: {
+            userId: user.$id,
+            userName: profile?.name ?? user.name,
+            userEmail: user.email,
+            role,
+            roleLabel: applicableRole.label,
+            status: "pending",
+            message: message?.trim() ?? "",
+            phone: contact.phone,
+            county: contact.county,
+            town: contact.town,
+            address: contact.address,
+            latitude: contact.latitude,
+            longitude: contact.longitude,
+            documentIds,
+            documentLabels: submittedDocuments.map((doc) => doc.label),
+          },
+          permissions: [
+            Permission.read(Role.user(user.$id)),
+            Permission.delete(Role.user(user.$id)),
+          ],
+        });
+      } catch (error) {
+        await deleteApplicationDocuments(documentIds);
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-applications"] });

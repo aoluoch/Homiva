@@ -23,6 +23,14 @@ const T = {
   products: "products",
   auditLogs: "audit_logs",
 };
+const APPLICABLE_ROLE_TEAMS = new Set([
+  "agents",
+  "landlords",
+  "airbnb_owners",
+  "movers",
+  "cleaning_companies",
+  "interior_designers",
+]);
 
 export default async ({ req, res, log, error }) => {
   const endpoint =
@@ -129,11 +137,18 @@ export default async ({ req, res, log, error }) => {
   try {
     switch (action) {
       case "approveRole": {
+        if (!applicationId) return fail("Application ID is required.");
         const app = await tablesDB.getRow({
           databaseId: DB,
           tableId: T.roleApplications,
           rowId: applicationId,
         });
+        if (!APPLICABLE_ROLE_TEAMS.has(app.role)) {
+          return fail("Application contains an unsupported role.");
+        }
+        if (app.status !== "pending" && app.status !== "suspended") {
+          return fail(`A ${app.status} application cannot be approved.`);
+        }
         // Add user to the role team (idempotent).
         try {
           await teams.createMembership({
@@ -156,6 +171,15 @@ export default async ({ req, res, log, error }) => {
       }
 
       case "rejectRole": {
+        if (!applicationId) return fail("Application ID is required.");
+        const app = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.roleApplications,
+          rowId: applicationId,
+        });
+        if (app.status !== "pending") {
+          return fail(`A ${app.status} application cannot be rejected.`);
+        }
         await tablesDB.updateRow({
           databaseId: DB,
           tableId: T.roleApplications,
@@ -167,11 +191,18 @@ export default async ({ req, res, log, error }) => {
       }
 
       case "suspendRole": {
+        if (!applicationId) return fail("Application ID is required.");
         const app = await tablesDB.getRow({
           databaseId: DB,
           tableId: T.roleApplications,
           rowId: applicationId,
         });
+        if (!APPLICABLE_ROLE_TEAMS.has(app.role)) {
+          return fail("Application contains an unsupported role.");
+        }
+        if (app.status !== "approved") {
+          return fail(`A ${app.status} application cannot be suspended.`);
+        }
         // Remove the user's membership from the role team.
         try {
           const memberships = await teams.listMemberships({
