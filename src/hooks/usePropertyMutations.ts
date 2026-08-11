@@ -134,6 +134,11 @@ export function useUpdateProperty() {
     }) => {
       const newImageIds = newFiles.length ? await uploadImages(newFiles) : [];
       const imageIds = [...(property.imageIds ?? []), ...newImageIds];
+      // Editing unpublishes the listing — drop public read until admin
+      // re-verifies location and re-approves.
+      const permissions = (property.$permissions ?? []).filter(
+        (p) => p !== 'read("any")',
+      );
 
       return tablesDB.updateRow({
         databaseId: appwriteConfig.databaseId,
@@ -147,6 +152,7 @@ export function useUpdateProperty() {
           status: "pending",
           locationVerificationStatus: "pending",
         },
+        permissions,
       });
     },
     onSuccess: (_d, vars) => {

@@ -15,7 +15,10 @@ export interface PropertyFilters {
 }
 
 function filterQueries(filters: PropertyFilters) {
-  const q: string[] = [Query.equal("status", "approved")];
+  const q: string[] = [
+    Query.equal("status", "approved"),
+    Query.equal("locationVerificationStatus", "verified"),
+  ];
   if (filters.listingType && filters.listingType !== "all") {
     q.push(Query.equal("listingType", filters.listingType));
   }
@@ -58,6 +61,7 @@ export function useFeaturedProperties() {
         tableId: TABLES.properties,
         queries: [
           Query.equal("status", "approved"),
+          Query.equal("locationVerificationStatus", "verified"),
           Query.orderDesc("$createdAt"),
           Query.limit(6),
         ],

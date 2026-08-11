@@ -148,6 +148,23 @@ async function deploy() {
 }
 
 deploy().catch((err) => {
-  console.error((err as Error).message);
+  const error = err as Error & {
+    code?: number;
+    type?: string;
+    cause?: { code?: string; message?: string };
+  };
+  console.error(error.message || "Deployment failed.");
+  if (error.code) console.error(`code: ${error.code}`);
+  if (error.type) console.error(`type: ${error.type}`);
+  if (error.cause) {
+    console.error(
+      `cause: ${error.cause.code ?? ""} ${error.cause.message ?? ""}`.trim(),
+    );
+  }
+  if (/fetch failed|networkerror|enotfound|econnrefused|etimedout/i.test(error.message)) {
+    console.error(
+      "Hint: could not reach Appwrite. Check network/VPN/DNS and that APPWRITE_ENDPOINT is reachable.",
+    );
+  }
   process.exit(1);
 });

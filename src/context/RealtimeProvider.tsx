@@ -27,6 +27,8 @@ const tableQueryKeys: Partial<Record<TableId, string[][]>> = {
     ["my-properties"],
     ["admin", "properties"],
     ["admin", "stats"],
+    // Unlock CTA depends on status + locationVerificationStatus.
+    ["viewing-access"],
   ],
   [TABLES.propertyImages]: [["property"], ["properties"], ["my-properties"]],
   [TABLES.viewingPayments]: [["viewing-access"]],

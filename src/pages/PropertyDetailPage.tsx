@@ -39,7 +39,11 @@ import { filePreview } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { useProperty } from "@/hooks/useProperties";
-import { useViewingAccess, usePayViewingFee } from "@/hooks/useViewing";
+import {
+  canUnlockPropertyViewing,
+  useViewingAccess,
+  usePayViewingFee,
+} from "@/hooks/useViewing";
 import { useRecordView } from "@/hooks/useRecentlyViewed";
 import { useFavorites, useToggleFavorite } from "@/hooks/useFavorites";
 import { useCreateInquiry } from "@/hooks/useInquiries";
@@ -81,7 +85,8 @@ export default function PropertyDetailPage() {
     );
   }
 
-  const unlocked = !!hasAccess;
+  const canUnlock = canUnlockPropertyViewing(property);
+  const unlocked = !!hasAccess && canUnlock;
   const isFavorited = favorites?.some((f) => f.propertyId === property.$id);
   const gallery = property.imageIds?.length
     ? property.imageIds
@@ -109,6 +114,12 @@ export default function PropertyDetailPage() {
   const handlePay = () => {
     if (!user) {
       navigate("/login", { state: { from: { pathname: `/properties/${id}` } } });
+      return;
+    }
+    if (!canUnlockPropertyViewing(property)) {
+      toast.error(
+        "This property is not yet verified by Homiva. Unlock will be available after location verification.",
+      );
       return;
     }
     payFee.mutate(property.$id, {
@@ -276,28 +287,54 @@ export default function PropertyDetailPage() {
                     <Lock className="h-4 w-4 text-accent" />
                     Details locked
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Pay a one-time {formatKES(VIEWING_FEE_KES)} viewing fee to
-                    unlock the exact location and contact details for this
-                    property.
-                  </p>
-                  <Button
-                    variant="accent"
-                    className="mt-4 w-full"
-                    onClick={handlePay}
-                    disabled={payFee.isPending}
-                  >
-                    {payFee.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Processing...
-                      </>
-                    ) : (
-                      <>Unlock for {formatKES(VIEWING_FEE_KES)}</>
-                    )}
-                  </Button>
-                  <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                    <ShieldCheck className="h-3 w-3" /> Secure payment via Paystack
-                  </p>
+                  {canUnlock ? (
+                    <>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Pay a one-time {formatKES(VIEWING_FEE_KES)} viewing fee to
+                        unlock the exact location and contact details for this
+                        property.
+                      </p>
+                      <Button
+                        variant="accent"
+                        className="mt-4 w-full"
+                        onClick={handlePay}
+                        disabled={payFee.isPending}
+                      >
+                        {payFee.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                            Processing...
+                          </>
+                        ) : (
+                          <>Unlock for {formatKES(VIEWING_FEE_KES)}</>
+                        )}
+                      </Button>
+                      <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                        <ShieldCheck className="h-3 w-3" /> Secure payment via
+                        Paystack
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Homiva has not verified this listing&apos;s location yet.
+                        Unlock and payment will be available once an admin
+                        completes verification.
+                      </p>
+                      <Button
+                        variant="accent"
+                        className="mt-4 w-full"
+                        disabled
+                        aria-disabled
+                      >
+                        Unlock unavailable
+                      </Button>
+                      <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                        <ShieldCheck className="h-3 w-3" /> Awaiting location
+                        verification
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>

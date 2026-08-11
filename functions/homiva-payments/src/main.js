@@ -204,6 +204,11 @@ export default async ({ req, res, log, error }) => {
         if (property.status !== "approved") {
           return fail("Only approved properties can be unlocked.");
         }
+        if (property.locationVerificationStatus !== "verified") {
+          return fail(
+            "This property's location has not been verified by Homiva yet. Unlock is unavailable until verification is complete.",
+          );
+        }
         assertPaidAmount(VIEWING_FEE_KES);
         const payment = await recordPayment();
         const viewing = await tablesDB.createRow({
