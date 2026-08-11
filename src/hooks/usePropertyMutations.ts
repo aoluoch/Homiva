@@ -50,6 +50,29 @@ function resolveOwnerRole(roles: string[], listingType: ListingType): string {
   return "owner";
 }
 
+function normalizeListingValues(values: PropertyFormValues) {
+  const data: Record<string, unknown> = {
+    title: values.title,
+    description: values.description,
+    listingType: values.listingType,
+    price: Math.round(Number(values.price) || 0),
+    county: values.county,
+    town: values.town,
+    address: values.address ?? "",
+    latitude: values.latitude ?? "",
+    longitude: values.longitude ?? "",
+    bedrooms: Math.max(0, Math.floor(Number(values.bedrooms) || 0)),
+    bathrooms: Math.max(0, Math.floor(Number(values.bathrooms) || 0)),
+    amenities: values.amenities,
+    contactPhone: values.contactPhone ?? "",
+    contactEmail: values.contactEmail ?? "",
+  };
+  if (values.sizeSqft !== undefined && values.sizeSqft !== null) {
+    data.sizeSqft = Math.max(0, Math.floor(Number(values.sizeSqft) || 0));
+  }
+  return data;
+}
+
 export function useCreateProperty() {
   const { user, profile, roles } = useAuth();
   const qc = useQueryClient();
@@ -70,8 +93,7 @@ export function useCreateProperty() {
         tableId: TABLES.properties,
         rowId: ID.unique(),
         data: {
-          ...values,
-          amenities: values.amenities,
+          ...normalizeListingValues(values),
           imageIds,
           coverImageId: imageIds[0] ?? null,
           status: "pending",
@@ -114,7 +136,7 @@ export function useUpdateProperty() {
         tableId: TABLES.properties,
         rowId: property.$id,
         data: {
-          ...values,
+          ...normalizeListingValues(values),
           imageIds,
           coverImageId: imageIds[0] ?? null,
           // Editing sends the listing back to review.

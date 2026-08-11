@@ -844,6 +844,8 @@ function ServiceRequestRow({ request }: { request: ServiceRequest }) {
   const [quote, setQuote] = useState(String(request.quotedAmount || ""));
   const [assignedTo, setAssignedTo] = useState(request.assignedTo || "");
   const [note, setNote] = useState(request.adminNote || "");
+  const photos = request.photoIds ?? [];
+  const phone = request.contactPhone?.trim();
 
   const save = () => {
     update.mutate(
@@ -872,6 +874,17 @@ function ServiceRequestRow({ request }: { request: ServiceRequest }) {
               {String(request.status)}
             </Badge>
           </div>
+          {phone ? (
+            <a
+              href={`tel:${phone}`}
+              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              {phone}
+            </a>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">No phone provided</p>
+          )}
           <p className="mt-1 break-words text-sm text-muted-foreground">
             {request.problem} {request.propertyType ? `· ${request.propertyType}` : ""}
             {request.town || request.county
@@ -885,6 +898,34 @@ function ServiceRequestRow({ request }: { request: ServiceRequest }) {
             Estimate {formatKES(request.estimatedMin || 0)} -{" "}
             {formatKES(request.estimatedMax || 0)}
           </p>
+          {photos.length > 0 ? (
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {photos.map((fileId) => (
+                <a
+                  key={fileId}
+                  href={fileView(appwriteConfig.buckets.servicePhotos, fileId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group relative aspect-square overflow-hidden rounded-md border"
+                >
+                  <img
+                    src={filePreview(appwriteConfig.buckets.servicePhotos, fileId, {
+                      width: 240,
+                      height: 240,
+                    })}
+                    alt={`Service photo from ${request.userName || "user"}`}
+                    className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
+                  />
+                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/55 py-1 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <ImageIcon className="h-3 w-3" />
+                    Open
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">No photos attached</p>
+          )}
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <Select value={status} onValueChange={setStatus}>

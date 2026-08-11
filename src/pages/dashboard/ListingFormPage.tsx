@@ -102,12 +102,26 @@ export default function ListingFormPage() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    const price = Math.round(Number(form.price));
+    const bedrooms = Math.max(0, Math.floor(Number(form.bedrooms) || 0));
+    const bathrooms = Math.max(0, Math.floor(Number(form.bathrooms) || 0));
+    const sizeRaw = form.sizeSqft;
+    const sizeSqft =
+      sizeRaw === undefined || sizeRaw === null || String(sizeRaw) === ""
+        ? undefined
+        : Math.max(0, Math.floor(Number(sizeRaw)));
+
+    if (!Number.isFinite(price) || price < 0) {
+      toast.error("Please enter a valid price in KES.");
+      return;
+    }
+
     const values: PropertyFormValues = {
       ...form,
-      price: Number(form.price),
-      bedrooms: Number(form.bedrooms),
-      bathrooms: Number(form.bathrooms),
-      sizeSqft: form.sizeSqft ? Number(form.sizeSqft) : undefined,
+      price,
+      bedrooms,
+      bathrooms,
+      sizeSqft,
       latitude: form.latitude?.trim() || undefined,
       longitude: form.longitude?.trim() || undefined,
       amenities: amenitiesText
@@ -204,10 +218,22 @@ export default function ListingFormPage() {
                 <Input
                   id="price"
                   type="number"
+                  inputMode="decimal"
                   min={0}
+                  step="any"
+                  placeholder="e.g. 2300000"
                   value={form.price || ""}
-                  onChange={(e) => set("price", Number(e.target.value))}
+                  onChange={(e) =>
+                    set(
+                      "price",
+                      e.target.value === "" ? 0 : Number(e.target.value),
+                    )
+                  }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter the full amount in KES (for 2.3M use 2300000). Decimals
+                  are rounded to the nearest shilling.
+                </p>
               </div>
             </div>
             <div className="space-y-2">
@@ -289,9 +315,21 @@ export default function ListingFormPage() {
                 <Input
                   id="bedrooms"
                   type="number"
+                  inputMode="numeric"
                   min={0}
-                  value={form.bedrooms}
-                  onChange={(e) => set("bedrooms", Number(e.target.value))}
+                  step={1}
+                  value={Number.isFinite(form.bedrooms) ? form.bedrooms : 0}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      set("bedrooms", 0);
+                      return;
+                    }
+                    const next = Number(raw);
+                    if (Number.isFinite(next)) {
+                      set("bedrooms", Math.max(0, Math.floor(next)));
+                    }
+                  }}
                 />
               </div>
               <div className="space-y-2">
@@ -299,9 +337,21 @@ export default function ListingFormPage() {
                 <Input
                   id="bathrooms"
                   type="number"
+                  inputMode="numeric"
                   min={0}
-                  value={form.bathrooms}
-                  onChange={(e) => set("bathrooms", Number(e.target.value))}
+                  step={1}
+                  value={Number.isFinite(form.bathrooms) ? form.bathrooms : 0}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      set("bathrooms", 0);
+                      return;
+                    }
+                    const next = Number(raw);
+                    if (Number.isFinite(next)) {
+                      set("bathrooms", Math.max(0, Math.floor(next)));
+                    }
+                  }}
                 />
               </div>
               <div className="space-y-2">
@@ -309,14 +359,21 @@ export default function ListingFormPage() {
                 <Input
                   id="size"
                   type="number"
+                  inputMode="numeric"
                   min={0}
+                  step={1}
                   value={form.sizeSqft ?? ""}
-                  onChange={(e) =>
-                    set(
-                      "sizeSqft",
-                      e.target.value ? Number(e.target.value) : undefined,
-                    )
-                  }
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      set("sizeSqft", undefined);
+                      return;
+                    }
+                    const next = Number(raw);
+                    if (Number.isFinite(next)) {
+                      set("sizeSqft", Math.max(0, Math.floor(next)));
+                    }
+                  }}
                 />
               </div>
             </div>
