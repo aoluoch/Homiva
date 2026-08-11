@@ -74,6 +74,11 @@ npm run dev
 
 Open http://localhost:5173.
 
+`npm run setup:appwrite` also registers web platforms for `localhost`,
+`127.0.0.1`, `homiva.appwrite.network`, and `www.homiva.appwrite.network`.
+Without the hostname you browse from registered as a platform, the browser
+reports Appwrite calls as **Failed to fetch** (CORS), including photo uploads.
+
 ## Scripts
 
 | Command | Purpose |

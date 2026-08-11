@@ -22,6 +22,22 @@ export const functions = new Functions(client);
 
 export { ID, Query };
 
+/**
+ * Turn opaque browser network failures into an actionable message.
+ * Unregistered Appwrite web platforms surface as TypeError "Failed to fetch".
+ */
+export function formatAppwriteError(err: unknown, fallback = "Request failed."): string {
+  const message = err instanceof Error ? err.message : String(err ?? fallback);
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return (
+      "Could not reach Appwrite (network/CORS). Confirm VITE_APPWRITE_ENDPOINT " +
+      "matches your project region and that this site's hostname is registered " +
+      "as a Web platform in the Appwrite console."
+    );
+  }
+  return message || fallback;
+}
+
 /** Build a public preview URL for an image stored in a bucket. */
 export function filePreview(
   bucketId: string,

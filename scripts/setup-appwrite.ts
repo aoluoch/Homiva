@@ -2,8 +2,9 @@
  * Idempotent Appwrite provisioning for Homiva.
  *
  * Creates: the `homiva` database, all core tables (PRD section 11) with columns
- * and indexes, storage buckets, and the role teams. Optionally bootstraps
- * admins (ADMIN_EMAIL / ADMIN_EMAILS) into the `admins` team.
+ * and indexes, storage buckets, web platforms (CORS hostnames), and the role
+ * teams. Optionally bootstraps admins (ADMIN_EMAIL / ADMIN_EMAILS) into the
+ * `admins` team.
  *
  * Usage:  npm run setup:appwrite
  * Requires .env with APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY.
@@ -13,6 +14,7 @@ import {
   Client,
   TablesDBIndexType as IndexType,
   Permission,
+  Project,
   Role,
   Storage,
   TablesDB,
@@ -60,6 +62,23 @@ const tablesDB = new TablesDB(client);
 const storage = new Storage(client);
 const teams = new Teams(client);
 const users = new Users(client);
+const project = new Project(client);
+
+/** Hostnames the Vite/browser client may call Appwrite from (CORS / platforms). */
+const WEB_PLATFORMS: Array<{ id: string; name: string; hostname: string }> = [
+  { id: "localhost", name: "Local Vite Dev", hostname: "localhost" },
+  { id: "127-0-0-1", name: "Local Vite 127", hostname: "127.0.0.1" },
+  {
+    id: "homiva-appwrite-network",
+    name: "Homiva Appwrite Network",
+    hostname: "homiva.appwrite.network",
+  },
+  {
+    id: "www-homiva-appwrite-network",
+    name: "Homiva WWW",
+    hostname: "www.homiva.appwrite.network",
+  },
+];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -215,11 +234,49 @@ async function createTable(
   );
 }
 
+async function ensureWebPlatforms() {
+  console.log("Web platforms (CORS):");
+  let existing = new Set<string>();
+  try {
+    const listed = await project.listPlatforms();
+    existing = new Set(
+      (listed.platforms ?? [])
+        .map((p) => {
+          const hostname =
+            "hostname" in p && typeof p.hostname === "string" ? p.hostname : "";
+          return hostname.toLowerCase();
+        })
+        .filter(Boolean),
+    );
+  } catch (err) {
+    console.warn(
+      `  ! list platforms: ${(err as Error).message ?? err} (will try creates)`,
+    );
+  }
+
+  for (const platform of WEB_PLATFORMS) {
+    if (existing.has(platform.hostname.toLowerCase())) {
+      console.log(`  = platform ${platform.hostname} (exists)`);
+      continue;
+    }
+    await safe(`platform ${platform.hostname}`, () =>
+      project.createWebPlatform({
+        platformId: platform.id,
+        name: platform.name,
+        hostname: platform.hostname,
+      }),
+    );
+  }
+}
+
 async function main() {
   console.log("Homiva Appwrite provisioning\n");
 
+  // 0) Browser origins — missing platforms surface as "Failed to fetch" in the client.
+  await ensureWebPlatforms();
+
   // 1) Database
-  console.log("Database:");
+  console.log("\nDatabase:");
   await safe(`database ${DB}`, () =>
     tablesDB.create({ databaseId: DB, name: "Homiva" }),
   );

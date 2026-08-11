@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Role } from "appwrite";
-import { storage, tablesDB } from "@/lib/appwrite";
+import { formatAppwriteError, storage, tablesDB } from "@/lib/appwrite";
 import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { ListingType, Property } from "@/types/models";
@@ -24,18 +24,22 @@ export interface PropertyFormValues {
 }
 
 async function uploadImages(files: File[]): Promise<string[]> {
-  const uploaded = await Promise.all(
-    files.map(async (file) => {
-      const res = await storage.createFile({
-        bucketId: appwriteConfig.buckets.propertyImages,
-        fileId: ID.unique(),
-        file,
-        permissions: [Permission.read(Role.any())],
-      });
-      return res.$id;
-    }),
-  );
-  return uploaded;
+  try {
+    const uploaded = await Promise.all(
+      files.map(async (file) => {
+        const res = await storage.createFile({
+          bucketId: appwriteConfig.buckets.propertyImages,
+          fileId: ID.unique(),
+          file,
+          permissions: [Permission.read(Role.any())],
+        });
+        return res.$id;
+      }),
+    );
+    return uploaded;
+  } catch (err) {
+    throw new Error(formatAppwriteError(err, "Photo upload failed."));
+  }
 }
 
 /** Determine which owner role to attribute a listing to. */

@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KENYA_COUNTIES } from "@/lib/config";
-import { filePreview } from "@/lib/appwrite";
+import { filePreview, formatAppwriteError } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { PropertyLocationPicker } from "@/components/location/PropertyLocationPicker";
 import { useProperty } from "@/hooks/useProperties";
@@ -147,7 +147,7 @@ export default function ListingFormPage() {
             toast.success("Listing updated and resubmitted for review.");
             navigate("/dashboard");
           },
-          onError: (err) => toast.error((err as Error).message),
+          onError: (err) => toast.error(formatAppwriteError(err)),
         },
       );
     } else {
@@ -158,7 +158,7 @@ export default function ListingFormPage() {
             toast.success("Listing submitted for review.");
             navigate("/dashboard");
           },
-          onError: (err) => toast.error((err as Error).message),
+          onError: (err) => toast.error(formatAppwriteError(err)),
         },
       );
     }
