@@ -14,6 +14,15 @@ export interface PropertyFilters {
   sort?: "newest" | "price_asc" | "price_desc";
 }
 
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: number }).code === 404
+  );
+}
+
 function filterQueries(filters: PropertyFilters) {
   const q: string[] = [
     Query.equal("status", "approved"),
@@ -75,13 +84,23 @@ export function useProperty(id?: string) {
   return useQuery({
     enabled: !!id,
     queryKey: ["property", id],
+    retry: (failureCount, error) =>
+      isNotFoundError(error) ? false : failureCount < 1,
     queryFn: async () => {
-      const res = await tablesDB.getRow({
-        databaseId: appwriteConfig.databaseId,
-        tableId: TABLES.properties,
-        rowId: id!,
-      });
-      return res as unknown as Property;
+      try {
+        const res = await tablesDB.getRow({
+          databaseId: appwriteConfig.databaseId,
+          tableId: TABLES.properties,
+          rowId: id!,
+        });
+        return res as unknown as Property;
+      } catch (error) {
+        // A removed or unpublished listing returns 404; surface it as an
+        // absent result so the page shows its "not available" state instead
+        // of a thrown error.
+        if (isNotFoundError(error)) return null;
+        throw error;
+      }
     },
   });
 }
