@@ -9,7 +9,9 @@ import {
   TABLES,
 } from "@/lib/config";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
+import { logAdminAudit } from "@/lib/audit";
 import { usePayment } from "@/hooks/usePayment";
+import { useAuth } from "@/context/AuthContext";
 import type { AppSetting, Product } from "@/types/models";
 import type { CartItem } from "@/context/CartContext";
 
@@ -89,17 +91,20 @@ export function useMarketplaceDeliveryFee() {
 }
 
 export function useAdminUpdateMarketplaceDeliveryFee() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (amountKES: number) => {
-      const value = String(Math.max(0, Math.round(amountKES)));
+      const rounded = Math.max(0, Math.round(amountKES));
+      const value = String(rounded);
+      let result;
       try {
         const current = await tablesDB.getRow({
           databaseId: DB,
           tableId: TABLES.appSettings,
           rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
         });
-        return tablesDB.updateRow({
+        result = await tablesDB.updateRow({
           databaseId: DB,
           tableId: TABLES.appSettings,
           rowId: current.$id,
@@ -108,25 +113,34 @@ export function useAdminUpdateMarketplaceDeliveryFee() {
       } catch (err) {
         const e = err as { code?: number };
         if (e.code !== 404) throw err;
+        result = await tablesDB.createRow({
+          databaseId: DB,
+          tableId: TABLES.appSettings,
+          rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
+          data: {
+            key: MARKETPLACE_DELIVERY_FEE_SETTING,
+            value,
+            label: "Marketplace delivery fee",
+          },
+          permissions: [
+            Permission.read(Role.any()),
+            Permission.update(Role.team("admins")),
+            Permission.delete(Role.team("admins")),
+          ],
+        });
       }
-      return tablesDB.createRow({
-        databaseId: DB,
-        tableId: TABLES.appSettings,
-        rowId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
-        data: {
-          key: MARKETPLACE_DELIVERY_FEE_SETTING,
-          value,
-          label: "Marketplace delivery fee",
-        },
-        permissions: [
-          Permission.read(Role.any()),
-          Permission.update(Role.team("admins")),
-          Permission.delete(Role.team("admins")),
-        ],
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: "marketplace_delivery_fee",
+        targetType: "app_setting",
+        targetId: MARKETPLACE_DELIVERY_FEE_ROW_ID,
+        summary: `Set marketplace delivery fee to KES ${rounded}.`,
       });
+      return result;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["marketplace", "delivery-fee"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
 import { uploadImageToStorage } from "@/lib/storage";
+import { logAdminAudit } from "@/lib/audit";
 import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
@@ -336,6 +337,7 @@ export function useAdminServiceRequests() {
 
 /** Admin update for Homiva-operated service dispatch, quoting and status. */
 export function useAdminUpdateServiceRequest() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -351,7 +353,7 @@ export function useAdminUpdateServiceRequest() {
       assignedTo?: string;
       adminNote?: string;
     }) => {
-      return tablesDB.updateRow({
+      const updated = await tablesDB.updateRow({
         databaseId: DB,
         tableId: TABLES.serviceRequests,
         rowId: requestId,
@@ -362,11 +364,27 @@ export function useAdminUpdateServiceRequest() {
           ...(adminNote !== undefined ? { adminNote } : {}),
         },
       });
+      const details = [
+        status ? `status ${status}` : "",
+        quotedAmount !== undefined ? `quote KES ${quotedAmount}` : "",
+        assignedTo ? `assigned to ${assignedTo}` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: "service_request_update",
+        targetType: "service",
+        targetId: requestId,
+        summary: `Updated service request${details ? ` (${details})` : ""}.`,
+      });
+      return updated;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "service-requests"] });
       qc.invalidateQueries({ queryKey: ["my-service-requests"] });
       qc.invalidateQueries({ queryKey: ["admin", "stats"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }

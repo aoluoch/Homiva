@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { functions, Query, tablesDB } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { appwriteConfig, TABLES } from "@/lib/config";
+import { logAdminAudit } from "@/lib/audit";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type {
   AuditLog,
   Dispute,
   MortgageEnquiry,
+  Order,
   PartnerCompany,
   Product,
   Profile,
@@ -100,6 +102,96 @@ export function usePendingProducts() {
         queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
       });
       return res.rows as unknown as Product[];
+    },
+  });
+}
+
+/** All marketplace orders (admins can read every order for fulfilment). */
+export function useAdminOrders() {
+  const enabled = useAdminEnabled();
+  return useQuery({
+    enabled,
+    queryKey: ["admin", "orders"],
+    queryFn: async () => {
+      const res = await tablesDB.listRows({
+        databaseId: DB,
+        tableId: TABLES.orders,
+        queries: [Query.orderDesc("$createdAt"), Query.limit(200)],
+      });
+      return res.rows as unknown as Order[];
+    },
+  });
+}
+
+/**
+ * Fetch the products referenced by a set of orders so the admin order view can
+ * show product thumbnails (orders only store the product id, not its images).
+ */
+export function useAdminOrderProducts(productIds: string[]) {
+  const uniqueIds = [...new Set(productIds.filter(Boolean))].sort();
+  const enabled = useAdminEnabled() && uniqueIds.length > 0;
+  return useQuery({
+    enabled,
+    queryKey: ["admin", "order-products", uniqueIds],
+    queryFn: async () => {
+      const map: Record<string, Product> = {};
+      for (let i = 0; i < uniqueIds.length; i += 100) {
+        const chunk = uniqueIds.slice(i, i + 100);
+        const res = await tablesDB.listRows({
+          databaseId: DB,
+          tableId: TABLES.products,
+          queries: [Query.equal("$id", chunk), Query.limit(chunk.length)],
+        });
+        for (const row of res.rows as unknown as Product[]) {
+          map[row.$id] = row;
+        }
+      }
+      return map;
+    },
+  });
+}
+
+/** Update the fulfilment status of every order line in a delivery (order group). */
+export function useAdminUpdateOrderStatus() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      orderIds,
+      status,
+      summary,
+    }: {
+      orderIds: string[];
+      status: string;
+      summary?: string;
+    }) => {
+      await Promise.all(
+        orderIds.map((rowId) =>
+          tablesDB.updateRow({
+            databaseId: DB,
+            tableId: TABLES.orders,
+            rowId,
+            data: { status },
+          }),
+        ),
+      );
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: `order_${status}`,
+        targetType: "order",
+        targetId: orderIds[0] ?? "",
+        summary:
+          summary ??
+          `Marked ${orderIds.length} order line(s) as ${status}.`,
+      });
+      return { orderIds, status };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+      qc.invalidateQueries({ queryKey: ["admin", "stats"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
+      qc.invalidateQueries({ queryKey: ["seller-orders"] });
+      qc.invalidateQueries({ queryKey: ["my-orders"] });
     },
   });
 }
@@ -214,20 +306,15 @@ export function useServiceProviders() {
   });
 }
 
-/** Admin audit trail for privileged moderation changes. */
+/** Admin audit trail for privileged actions (cursor-paginated). */
 export function useAuditLogs() {
   const enabled = useAdminEnabled();
-  return useQuery({
+  return useAppwriteInfiniteRows<AuditLog>({
     enabled,
     queryKey: ["admin", "audit-logs"],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
-        databaseId: DB,
-        tableId: TABLES.auditLogs,
-        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
-      });
-      return res.rows as unknown as AuditLog[];
-    },
+    tableId: TABLES.auditLogs,
+    pageSize: PAGE_SIZE.admin,
+    buildQueries: () => [Query.orderDesc("$createdAt")],
   });
 }
 
@@ -263,8 +350,8 @@ export function useResolveDispute() {
       id: string;
       status: string;
       resolution?: string;
-    }) =>
-      tablesDB.updateRow({
+    }) => {
+      const updated = await tablesDB.updateRow({
         databaseId: DB,
         tableId: TABLES.disputes,
         rowId: id,
@@ -273,10 +360,20 @@ export function useResolveDispute() {
           ...(resolution !== undefined ? { resolution } : {}),
           handledBy: user?.$id ?? "",
         },
-      }),
+      });
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: `dispute_${status}`,
+        targetType: "dispute",
+        targetId: id,
+        summary: `Dispute set to ${status}.`,
+      });
+      return updated;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "disputes"] });
       qc.invalidateQueries({ queryKey: ["my-disputes"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }

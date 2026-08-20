@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
 import { uploadImageToStorage } from "@/lib/storage";
+import { logAdminAudit } from "@/lib/audit";
 import { appwriteConfig, TABLES } from "@/lib/config";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import { useAuth } from "@/context/AuthContext";
@@ -274,6 +275,7 @@ export function useDeleteProduct() {
 }
 
 export function useAdminCreateProduct() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -286,7 +288,7 @@ export function useAdminCreateProduct() {
       const imageIds = await Promise.all(
         files.map((f) => uploadImage(appwriteConfig.buckets.productImages, f)),
       );
-      return tablesDB.createRow({
+      const created = await tablesDB.createRow({
         databaseId: DB,
         tableId: TABLES.products,
         rowId: ID.unique(),
@@ -306,15 +308,25 @@ export function useAdminCreateProduct() {
           Permission.delete(Role.team("admins")),
         ],
       });
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: "product_create",
+        targetType: "product",
+        targetId: created.$id,
+        summary: `Published Homiva product "${values.title}".`,
+      });
+      return created;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "products"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }
 
 export function useAdminUpdateProduct() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -331,7 +343,7 @@ export function useAdminUpdateProduct() {
             files.map((f) => uploadImage(appwriteConfig.buckets.productImages, f)),
           )
         : [];
-      return tablesDB.updateRow({
+      const updated = await tablesDB.updateRow({
         databaseId: DB,
         tableId: TABLES.products,
         rowId: id,
@@ -342,26 +354,46 @@ export function useAdminUpdateProduct() {
             : {}),
         },
       });
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: "product_update",
+        targetType: "product",
+        targetId: id,
+        summary: `Updated product "${values.title ?? id}".`,
+      });
+      return updated;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "products"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }
 
 export function useAdminDeleteProduct() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) =>
-      tablesDB.deleteRow({
+    mutationFn: async (id: string) => {
+      const res = await tablesDB.deleteRow({
         databaseId: DB,
         tableId: TABLES.products,
         rowId: id,
-      }),
+      });
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: "product_delete",
+        targetType: "product",
+        targetId: id,
+        summary: `Deleted product ${id}.`,
+      });
+      return res;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "products"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }
