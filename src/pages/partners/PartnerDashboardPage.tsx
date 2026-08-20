@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/EmptyState";
+import {
+  MultiImageInput,
+  SingleImageInput,
+} from "@/components/ImageUploadField";
 import { useAuth } from "@/context/AuthContext";
 import {
   KENYA_COUNTIES,
@@ -182,11 +186,25 @@ function ProfileForm({ company }: { company?: import("@/types/models").PartnerCo
         </div>
         <div>
           <Label>Logo</Label>
-          <Input type="file" accept="image/*" onChange={(e) => setLogo(e.target.files?.[0] ?? null)} className="mt-1" />
+          <SingleImageInput
+            file={logo}
+            onFileChange={setLogo}
+            existingUrl={fileUrl(company?.logoFileId, 320, 320)}
+            aspectClassName="aspect-square"
+            emptyLabel="Select a logo image"
+            disabled={save.isPending}
+          />
         </div>
         <div>
           <Label>Banner</Label>
-          <Input type="file" accept="image/*" onChange={(e) => setBanner(e.target.files?.[0] ?? null)} className="mt-1" />
+          <SingleImageInput
+            file={banner}
+            onFileChange={setBanner}
+            existingUrl={fileUrl(company?.bannerFileId, 640, 360)}
+            aspectClassName="aspect-video"
+            emptyLabel="Select a banner image"
+            disabled={save.isPending}
+          />
         </div>
         <div className="sm:col-span-2">
           <Button onClick={submit} disabled={save.isPending}>
@@ -264,17 +282,27 @@ function PortfolioPanel({ company }: { company: import("@/types/models").Partner
       <CardContent className="p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Portfolio</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []).slice(0, 8))}
-            />
-            <Button onClick={submit} disabled={upload.isPending || files.length === 0}>
-              <ImagePlus className="h-4 w-4" /> Upload
-            </Button>
-          </div>
+          <Button onClick={submit} disabled={upload.isPending || files.length === 0}>
+            {upload.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ImagePlus className="h-4 w-4" />
+            )}
+            Upload{files.length > 0 ? ` (${files.length})` : ""}
+          </Button>
+        </div>
+        <div className="mb-4">
+          {files.length > 0 && (
+            <p className="mb-2 text-sm text-muted-foreground">
+              Preview the images below and remove any wrong selection before uploading.
+            </p>
+          )}
+          <MultiImageInput
+            files={files}
+            onFilesChange={setFiles}
+            max={8}
+            disabled={upload.isPending}
+          />
         </div>
         {data && data.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

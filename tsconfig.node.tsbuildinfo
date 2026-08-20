@@ -1,1 +1,1 @@
-{"root":["./vite.config.ts","./scripts/deploy-admin-function.ts","./scripts/deploy-payments-function.ts","./scripts/finalize-marketplace-schema.ts","./scripts/fix-stuck-schema.ts","./scripts/seed.ts","./scripts/setup-appwrite.ts"],"version":"5.9.3"}
+{"root":["./vite.config.ts","./scripts/deploy-admin-function.ts","./scripts/deploy-image-compress-function.ts","./scripts/deploy-payments-function.ts","./scripts/finalize-marketplace-schema.ts","./scripts/fix-stuck-schema.ts","./scripts/seed.ts","./scripts/setup-appwrite.ts"],"version":"5.9.3"}

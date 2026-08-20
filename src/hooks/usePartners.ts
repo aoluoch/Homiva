@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
-import { storage, tablesDB } from "@/lib/appwrite";
+import { tablesDB } from "@/lib/appwrite";
+import { uploadImageToStorage } from "@/lib/storage";
 import {
   appwriteConfig,
   PARTNER_ROLE_CATEGORY,
@@ -20,13 +21,7 @@ const DB = appwriteConfig.databaseId;
 const PARTNER_TEAMS = [TEAMS.movers, TEAMS.cleaningCompanies, TEAMS.interiorDesigners];
 
 async function uploadAsset(file: File): Promise<string> {
-  const res = await storage.createFile({
-    bucketId: appwriteConfig.buckets.storeAssets,
-    fileId: ID.unique(),
-    file,
-    permissions: [Permission.read(Role.any())],
-  });
-  return res.$id;
+  return uploadImageToStorage(appwriteConfig.buckets.storeAssets, file);
 }
 
 function firstPartnerRole(roles: string[]) {
@@ -146,12 +141,14 @@ export function useSavePartnerCompany() {
           subscriptionStatus: "none",
           rating: 0,
         },
+        // Clients may only grant document permissions for roles they hold.
+        // Admin access is provided at the collection level (readAny +
+        // update/delete for team:admins), so granting team:admins here would be
+        // rejected for a partner who is not also an admin.
         permissions: [
           Permission.read(Role.any()),
           Permission.update(Role.user(user.$id)),
           Permission.delete(Role.user(user.$id)),
-          Permission.read(Role.team(TEAMS.admins)),
-          Permission.update(Role.team(TEAMS.admins)),
         ],
       }) as unknown as PartnerCompany;
     },
@@ -209,12 +206,12 @@ export function useUploadPartnerPortfolio() {
               caption: "",
               order: index,
             },
+            // Admin access is granted at the collection level; clients can only
+            // grant document permissions for roles they themselves hold.
             permissions: [
               Permission.read(Role.any()),
               Permission.update(Role.user(user.$id)),
               Permission.delete(Role.user(user.$id)),
-              Permission.read(Role.team(TEAMS.admins)),
-              Permission.update(Role.team(TEAMS.admins)),
             ],
           }),
         );

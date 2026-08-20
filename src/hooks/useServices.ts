@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
-import { storage, tablesDB } from "@/lib/appwrite";
+import { tablesDB } from "@/lib/appwrite";
+import { uploadImageToStorage } from "@/lib/storage";
 import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { usePayment } from "@/hooks/usePayment";
@@ -35,15 +36,9 @@ export interface ServiceProviderInput {
 
 async function uploadServicePhotos(files: File[]): Promise<string[]> {
   const uploaded = await Promise.all(
-    files.map(async (file) => {
-      const res = await storage.createFile({
-        bucketId: appwriteConfig.buckets.servicePhotos,
-        fileId: ID.unique(),
-        file,
-        permissions: [Permission.read(Role.any())],
-      });
-      return res.$id;
-    }),
+    files.map((file) =>
+      uploadImageToStorage(appwriteConfig.buckets.servicePhotos, file),
+    ),
   );
   return uploaded;
 }

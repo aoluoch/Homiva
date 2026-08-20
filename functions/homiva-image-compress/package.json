@@ -1,0 +1,15 @@
+{
+  "name": "homiva-image-compress",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compress Homiva storage images down to ~1MB while preserving visual quality.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "node-appwrite": "^27.0.0",
+    "sharp": "^0.34.0"
+  }
+}

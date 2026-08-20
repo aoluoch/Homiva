@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
-import { storage, tablesDB } from "@/lib/appwrite";
+import { tablesDB } from "@/lib/appwrite";
+import { uploadImageToStorage } from "@/lib/storage";
 import { appwriteConfig, TABLES } from "@/lib/config";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import { useAuth } from "@/context/AuthContext";
@@ -10,13 +11,7 @@ import type { Order, Product, Storefront } from "@/types/models";
 const DB = appwriteConfig.databaseId;
 
 async function uploadImage(bucketId: string, file: File): Promise<string> {
-  const res = await storage.createFile({
-    bucketId,
-    fileId: ID.unique(),
-    file,
-    permissions: [Permission.read(Role.any())],
-  });
-  return res.$id;
+  return uploadImageToStorage(bucketId, file);
 }
 
 // --- Storefront -------------------------------------------------------------

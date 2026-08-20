@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
 /** Log users out after this much continuous inactivity. */
-export const IDLE_TIMEOUT_MS = 2 * 60 * 1000;
+export const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
   "mousemove",
@@ -48,7 +48,7 @@ export function useIdleLogout() {
         localStorage.removeItem(STORAGE_KEY);
         toast.message("Signed out due to inactivity", {
           description:
-            "For security, Homiva ends idle sessions after 2 minutes.",
+            "For security, Homiva ends idle sessions after 15 minutes.",
         });
         navigateRef.current("/login", { replace: true });
       }

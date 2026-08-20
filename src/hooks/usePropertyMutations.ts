@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Role } from "appwrite";
-import { formatAppwriteError, storage, tablesDB } from "@/lib/appwrite";
+import { formatAppwriteError, tablesDB } from "@/lib/appwrite";
+import { uploadImageToStorage } from "@/lib/storage";
 import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { ListingType, Property } from "@/types/models";
@@ -26,15 +27,9 @@ export interface PropertyFormValues {
 async function uploadImages(files: File[]): Promise<string[]> {
   try {
     const uploaded = await Promise.all(
-      files.map(async (file) => {
-        const res = await storage.createFile({
-          bucketId: appwriteConfig.buckets.propertyImages,
-          fileId: ID.unique(),
-          file,
-          permissions: [Permission.read(Role.any())],
-        });
-        return res.$id;
-      }),
+      files.map((file) =>
+        uploadImageToStorage(appwriteConfig.buckets.propertyImages, file),
+      ),
     );
     return uploaded;
   } catch (err) {

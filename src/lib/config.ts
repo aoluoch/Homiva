@@ -25,8 +25,14 @@ export const appwriteConfig = {
   functions: {
     admin: import.meta.env.VITE_APPWRITE_FUNCTION_ADMIN ?? "homiva-admin",
     payments: import.meta.env.VITE_APPWRITE_FUNCTION_PAYMENTS ?? "homiva-payments",
+    imageCompress:
+      import.meta.env.VITE_APPWRITE_FUNCTION_IMAGE_COMPRESS ??
+      "homiva-image-compress",
   },
 } as const;
+
+/** Target size that uploaded images are compressed down to (1 MB). */
+export const IMAGE_COMPRESSION_TARGET_BYTES = 1024 * 1024;
 
 /** Paystack client configuration (public key is safe to expose). */
 export const paystackConfig = {
