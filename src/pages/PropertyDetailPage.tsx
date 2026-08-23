@@ -146,7 +146,7 @@ export default function PropertyDetailPage() {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
         {/* Left: gallery + details */}
-        <div>
+        <div className="min-w-0">
           <div className="overflow-hidden rounded-xl border bg-muted">
             <img
               src={heroSrc}
@@ -246,7 +246,7 @@ export default function PropertyDetailPage() {
         </div>
 
         {/* Right: sticky action card */}
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:self-start">
           {property.listingType === "airbnb" && (
             <BookingWidget property={property} />
           )}

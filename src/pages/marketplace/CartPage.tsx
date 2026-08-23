@@ -112,7 +112,7 @@ export default function CartPage() {
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             {items.map((item) => (
               <Card key={item.productId}>
                 <CardContent className="grid gap-4 p-4 sm:grid-cols-[120px_1fr_auto] sm:items-center">
@@ -190,7 +190,7 @@ export default function CartPage() {
             ))}
           </div>
 
-          <Card className="h-fit">
+          <Card className="h-fit min-w-0">
             <CardContent className="space-y-4 p-5">
               <div>
                 <h2 className="text-lg font-semibold">Checkout</h2>

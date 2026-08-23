@@ -98,7 +98,7 @@ export default function MessagesPage() {
         </div>
 
         {/* Conversation */}
-        <div className="flex min-h-[60vh] flex-col rounded-xl border bg-card">
+        <div className="flex min-h-[60vh] min-w-0 flex-col rounded-xl border bg-card">
           {activeThread || to ? (
             <>
               <div className="border-b p-4 font-medium">
@@ -117,7 +117,7 @@ export default function MessagesPage() {
                     >
                       <div
                         className={cn(
-                          "max-w-[75%] rounded-2xl px-4 py-2 text-sm",
+                          "max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2 text-sm",
                           mine
                             ? "bg-primary text-primary-foreground"
                             : "bg-secondary",

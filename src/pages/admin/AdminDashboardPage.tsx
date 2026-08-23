@@ -16,6 +16,7 @@ import {
   ImageIcon,
   Inbox,
   Loader2,
+  Mail,
   MapPin,
   Package,
   Phone,
@@ -71,6 +72,7 @@ import {
   useAdminPartnerCompanies,
   useAdminUpdateOrderStatus,
   useAllProfiles,
+  useApplicationsByOwner,
   usePendingApplications,
   usePendingProducts,
   usePendingProperties,
@@ -105,6 +107,7 @@ import type {
   Product,
   PartnerCompany,
   PropertyStatus,
+  RoleApplication,
   ServiceRequest,
 } from "@/types/models";
 import { cn } from "@/lib/utils";
@@ -122,6 +125,7 @@ export default function AdminDashboardPage() {
   const { data: profiles, isLoading: loadingUsers } = useAllProfiles();
   const { data: products, isLoading: loadingProducts } = usePendingProducts();
   const { data: partners, isLoading: loadingPartners } = useAdminPartnerCompanies();
+  const { data: applicationsByOwner } = useApplicationsByOwner();
   const { data: serviceRequests, isLoading: loadingServices } =
     useAdminServiceRequests();
   const { data: orders, isLoading: loadingOrders } = useAdminOrders();
@@ -304,7 +308,14 @@ export default function AdminDashboardPage() {
           ) : partners && partners.length > 0 ? (
             <div className="space-y-3">
               {partners.map((company) => (
-                <PartnerCompanyRow key={company.$id} company={company} />
+                <PartnerCompanyRow
+                  key={company.$id}
+                  company={company}
+                  application={
+                    applicationsByOwner?.[`${company.ownerId}::${company.role}`]
+                  }
+                  ownerName={actorNameById[company.ownerId]}
+                />
               ))}
             </div>
           ) : (
@@ -808,7 +819,15 @@ function PropertyRow({
   );
 }
 
-function PartnerCompanyRow({ company }: { company: PartnerCompany }) {
+function PartnerCompanyRow({
+  company,
+  application,
+  ownerName,
+}: {
+  company: PartnerCompany;
+  application?: RoleApplication;
+  ownerName?: string;
+}) {
   const action = useAdminAction();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -832,45 +851,183 @@ function PartnerCompanyRow({ company }: { company: PartnerCompany }) {
     );
   };
 
+  const logo = company.logoFileId
+    ? filePreview(appwriteConfig.buckets.storeAssets, company.logoFileId, {
+        width: 96,
+        height: 96,
+      })
+    : null;
+  const phone = company.phone?.trim() || application?.phone?.trim();
+  const email = company.email?.trim() || application?.userEmail?.trim();
+  const companyLocation = [company.town, company.county]
+    .filter(Boolean)
+    .join(", ");
+  const applicationLocation = [
+    application?.address,
+    application?.town,
+    application?.county,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const documentIds = application?.documentIds ?? [];
+
   return (
     <Card>
-      <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="min-w-0 break-words font-medium">{company.name}</p>
-            <Badge
-              variant={
-                company.status === "approved"
-                  ? "success"
-                  : company.status === "rejected" || company.status === "suspended"
-                    ? "destructive"
-                    : "warning"
-              }
-            >
-              {company.status}
-            </Badge>
-            <Badge
-              variant={
-                company.subscriptionStatus === "active" ? "success" : "secondary"
-              }
-            >
-              {company.subscriptionStatus}
-            </Badge>
-            <Badge variant="outline">
-              {PARTNER_CATEGORIES.find((c) => c.key === company.category)?.label}
-            </Badge>
-            {company.featured && <Badge variant="accent">featured</Badge>}
+      <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-start">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted text-muted-foreground">
+            {logo ? (
+              <img
+                src={logo}
+                alt={company.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Store className="h-5 w-5" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 break-words font-medium">{company.name}</p>
+              <Badge
+                variant={
+                  company.status === "approved"
+                    ? "success"
+                    : company.status === "rejected" ||
+                        company.status === "suspended"
+                      ? "destructive"
+                      : "warning"
+                }
+              >
+                {company.status}
+              </Badge>
+              <Badge
+                variant={
+                  company.subscriptionStatus === "active"
+                    ? "success"
+                    : "secondary"
+                }
+              >
+                {company.subscriptionStatus}
+              </Badge>
+              <Badge variant="outline">
+                {PARTNER_CATEGORIES.find((c) => c.key === company.category)?.label}
+              </Badge>
+              {company.verified && (
+                <Badge variant="accent" className="gap-1">
+                  <BadgeCheck className="h-3.5 w-3.5" /> verified
+                </Badge>
+              )}
+              {company.featured && <Badge variant="accent">featured</Badge>}
+            </div>
+
+            {ownerName && (
+              <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                <User className="h-3.5 w-3.5 shrink-0" />
+                <span className="break-words">Owner: {ownerName}</span>
+              </p>
+            )}
+
+            {company.description && (
+              <p className="mt-1 break-words text-sm text-muted-foreground">
+                {company.description}
+              </p>
+            )}
+
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              {phone ? (
+                <a
+                  href={`tel:${phone}`}
+                  className="flex w-fit items-center gap-1 font-medium text-primary hover:underline"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  {phone}
+                </a>
+              ) : (
+                <p className="text-xs">No phone provided</p>
+              )}
+              {email && (
+                <a
+                  href={`mailto:${email}`}
+                  className="flex w-fit items-center gap-1 break-all hover:text-primary"
+                >
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  {email}
+                </a>
+              )}
+              <p className="flex items-start gap-1">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="break-words">
+                  {applicationLocation || companyLocation || "No location set"}
+                </span>
+              </p>
+              {application?.latitude && application?.longitude && (
+                <a
+                  href={applicationMapHref(application)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Open in OpenStreetMap
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+
+            {application?.latitude && application?.longitude ? (
+              <PropertyMapPreview
+                className="mt-3 h-52 w-full sm:h-60"
+                latitude={application.latitude}
+                longitude={application.longitude}
+                label={applicationLocation || company.name}
+              />
+            ) : null}
+
+            {documentIds.length > 0 ? (
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Verification documents
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {documentIds.map((fileId, index) => (
+                    <a
+                      key={fileId}
+                      href={fileView(
+                        appwriteConfig.buckets.verificationDocuments,
+                        fileId,
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary hover:bg-secondary"
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">
+                        {application?.documentLabels?.[index] ??
+                          `Document ${index + 1}`}
+                      </span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">
+                No verification documents on the linked application.
+              </p>
+            )}
           </div>
-          <p className="break-words text-sm text-muted-foreground">
-            {company.town || company.county
-              ? `${company.town}${company.town && company.county ? ", " : ""}${company.county}`
-              : "No location set"}
-          </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 md:flex md:shrink-0 md:flex-wrap md:justify-end">
+
+        <div className="grid gap-2 sm:grid-cols-2 md:flex md:shrink-0 md:flex-col md:items-stretch md:justify-start">
+          <Button asChild size="sm" variant="ghost" className="w-full md:w-auto">
+            <a href={`/partners/${company.$id}`} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" /> View profile
+            </a>
+          </Button>
           {company.status !== "approved" && (
             <Button
               size="sm"
+              className="w-full md:w-auto"
               onClick={() => run("approvePartnerCompany", "approved")}
               disabled={!!busy}
             >
@@ -886,6 +1043,7 @@ function PartnerCompanyRow({ company }: { company: PartnerCompany }) {
             <Button
               size="sm"
               variant="outline"
+              className="w-full md:w-auto"
               onClick={() => run("suspendPartnerCompany", "suspended")}
               disabled={!!busy}
             >
@@ -896,6 +1054,7 @@ function PartnerCompanyRow({ company }: { company: PartnerCompany }) {
             <Button
               size="sm"
               variant="outline"
+              className="w-full md:w-auto"
               onClick={() => run("rejectPartnerCompany", "rejected")}
               disabled={!!busy}
             >
@@ -905,6 +1064,7 @@ function PartnerCompanyRow({ company }: { company: PartnerCompany }) {
           <Button
             size="sm"
             variant="outline"
+            className="w-full md:w-auto"
             onClick={() =>
               run(
                 company.featured
@@ -1012,7 +1172,7 @@ function ServiceRequestRow({ request }: { request: ServiceRequest }) {
             <p className="mt-3 text-xs text-muted-foreground">No photos attached</p>
           )}
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
               <SelectValue />
@@ -1084,7 +1244,7 @@ function AdminMarketplaceSettings() {
   return (
     <Card>
       <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_320px] md:items-end">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold">Marketplace checkout</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Set the delivery fee added to every cart checkout.
@@ -1450,7 +1610,7 @@ function OrderGroupCard({
         </div>
 
         <div className="grid gap-4 p-4 lg:grid-cols-[1.3fr_1fr]">
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <div className="rounded-lg border">
               {group.orders.map((order, i) => {
                 const product = productMap?.[order.productId];
@@ -1482,7 +1642,7 @@ function OrderGroupCard({
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <div className="rounded-lg border p-3">
               <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <Truck className="h-4 w-4 text-primary" /> Delivery details

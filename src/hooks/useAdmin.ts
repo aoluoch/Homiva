@@ -211,6 +211,35 @@ export function useAdminPartnerCompanies() {
   });
 }
 
+/**
+ * All role applications (non-paginated) keyed by `${userId}::${role}` so the
+ * Partners tab can surface the contact, pinned location and verification
+ * documents the applicant submitted when they applied to become a partner.
+ */
+export function useApplicationsByOwner() {
+  const enabled = useAdminEnabled();
+  return useQuery({
+    enabled,
+    queryKey: ["admin", "applications-by-owner"],
+    queryFn: async () => {
+      const res = await tablesDB.listRows({
+        databaseId: DB,
+        tableId: TABLES.roleApplications,
+        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
+      });
+      const rows = res.rows as unknown as RoleApplication[];
+      const map: Record<string, RoleApplication> = {};
+      for (const row of rows) {
+        // Keep the most recent application per owner + role (rows are already
+        // ordered newest-first, so only set the first one we encounter).
+        const key = `${row.userId}::${row.role}`;
+        if (!map[key]) map[key] = row;
+      }
+      return map;
+    },
+  });
+}
+
 interface AdminActionPayload {
   action:
     | "approveRole"

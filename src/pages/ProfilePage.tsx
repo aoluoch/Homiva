@@ -2,7 +2,10 @@ import { useState } from "react";
 import {
   BadgeCheck,
   Clock,
+  ExternalLink,
   FileText,
+  MapPin,
+  Phone,
   ShieldCheck,
   Upload,
   X,
@@ -39,6 +42,8 @@ import {
   TEAMS,
 } from "@/lib/config";
 import { initials } from "@/lib/utils";
+import { fileView } from "@/lib/appwrite";
+import { appwriteConfig } from "@/lib/config";
 import {
   useApplyForRole,
   useMyApplications,
@@ -438,18 +443,64 @@ export default function ProfilePage() {
           <div className="space-y-2">
             {applications.map((a) => {
               const style = statusStyles[a.status];
+              const submittedLocation = [a.address, a.town, a.county]
+                .filter(Boolean)
+                .join(", ");
+              const documentIds = a.documentIds ?? [];
               return (
                 <Card key={a.$id}>
-                  <CardContent className="flex items-center justify-between gap-4 py-4">
-                    <div>
+                  <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
                       <p className="font-medium">{a.roleLabel}</p>
+                      {a.message && (
+                        <p className="break-words text-sm italic text-muted-foreground">
+                          "{a.message}"
+                        </p>
+                      )}
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        {a.phone && (
+                          <p className="flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5 shrink-0" />
+                            {a.phone}
+                          </p>
+                        )}
+                        {submittedLocation && (
+                          <p className="flex items-start gap-1">
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span className="break-words">{submittedLocation}</span>
+                          </p>
+                        )}
+                      </div>
+                      {documentIds.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {documentIds.map((fileId, index) => (
+                            <a
+                              key={fileId}
+                              href={fileView(
+                                appwriteConfig.buckets.verificationDocuments,
+                                fileId,
+                              )}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary hover:bg-secondary"
+                            >
+                              <FileText className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">
+                                {a.documentLabels?.[index] ??
+                                  `Document ${index + 1}`}
+                              </span>
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       {a.reviewNote && (
                         <p className="text-sm text-muted-foreground">
                           Note: {a.reviewNote}
                         </p>
                       )}
                     </div>
-                    <Badge variant={style.variant}>
+                    <Badge variant={style.variant} className="shrink-0 self-start">
                       {a.status === "rejected" && (
                         <XCircle className="mr-1 h-3 w-3" />
                       )}
