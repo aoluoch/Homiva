@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ImagePlus, Loader2, X } from "lucide-react";
+import { ArrowLeft, ImagePlus, Loader2, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,10 @@ export default function ListingFormPage() {
   const [amenitiesText, setAmenitiesText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  // Existing (already-uploaded) images the owner keeps, in display order.
+  const [keptImageIds, setKeptImageIds] = useState<string[]>([]);
+  // Preferred cover among the existing kept images (null = first photo).
+  const [coverImageId, setCoverImageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (existing) {
@@ -78,6 +82,10 @@ export default function ListingFormPage() {
         contactEmail: existing.contactEmail ?? "",
       });
       setAmenitiesText((existing.amenities ?? []).join(", "));
+      setKeptImageIds(existing.imageIds ?? []);
+      setCoverImageId(
+        existing.coverImageId ?? existing.imageIds?.[0] ?? null,
+      );
     }
   }, [existing]);
 
@@ -98,6 +106,16 @@ export default function ListingFormPage() {
   const removeNewFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
     setPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingImage = (fileId: string) => {
+    setKeptImageIds((prev) => {
+      const next = prev.filter((idValue) => idValue !== fileId);
+      setCoverImageId((cover) =>
+        cover === fileId ? (next[0] ?? null) : cover,
+      );
+      return next;
+    });
   };
 
   const submit = (e: React.FormEvent) => {
@@ -138,10 +156,20 @@ export default function ListingFormPage() {
       toast.error("Please add at least one photo.");
       return;
     }
+    if (isEdit && keptImageIds.length + files.length === 0) {
+      toast.error("A listing needs at least one photo. Add a new one before removing the last.");
+      return;
+    }
 
     if (isEdit && existing) {
       update.mutate(
-        { property: existing, values, newFiles: files },
+        {
+          property: existing,
+          values,
+          newFiles: files,
+          keptImageIds,
+          coverImageId,
+        },
         {
           onSuccess: () => {
             toast.success("Listing updated and resubmitted for review.");
@@ -419,25 +447,65 @@ export default function ListingFormPage() {
           <CardHeader>
             <CardTitle>Photos</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {isEdit && (
+              <p className="text-sm text-muted-foreground">
+                Remove any wrong or broken photos with the{" "}
+                <X className="inline h-3.5 w-3.5 align-text-bottom" /> button and
+                add replacements. Tap a photo's star to make it the cover shown
+                to users.
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {isEdit &&
-                existing?.imageIds?.map((fileId) => (
-                  <div
-                    key={fileId}
-                    className="relative aspect-square overflow-hidden rounded-lg border"
-                  >
-                    <img
-                      src={filePreview(
-                        appwriteConfig.buckets.propertyImages,
-                        fileId,
-                        { width: 200, height: 200 },
+                keptImageIds.map((fileId) => {
+                  const isCover = coverImageId
+                    ? coverImageId === fileId
+                    : keptImageIds[0] === fileId;
+                  return (
+                    <div
+                      key={fileId}
+                      className="relative aspect-square overflow-hidden rounded-lg border"
+                    >
+                      <img
+                        src={filePreview(
+                          appwriteConfig.buckets.propertyImages,
+                          fileId,
+                          { width: 200, height: 200 },
+                        )}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCoverImageId(fileId)}
+                        title={isCover ? "Cover photo" : "Make cover photo"}
+                        className="absolute left-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-background/90 shadow"
+                      >
+                        <Star
+                          className={
+                            isCover
+                              ? "h-3.5 w-3.5 fill-yellow-400 text-yellow-400"
+                              : "h-3.5 w-3.5 text-muted-foreground"
+                          }
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(fileId)}
+                        title="Remove photo"
+                        className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-background/90 shadow"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      {isCover && (
+                        <span className="absolute inset-x-0 bottom-0 bg-background/85 py-0.5 text-center text-[10px] font-medium">
+                          Cover
+                        </span>
                       )}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               {previews.map((src, i) => (
                 <div
                   key={src}

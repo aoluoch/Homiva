@@ -40,3 +40,18 @@ export async function uploadImageToStorage(
   await compressStoredImage(bucketId, res.$id);
   return res.$id;
 }
+
+/**
+ * Delete a file from a Storage bucket. Best-effort: a failure here (e.g. the
+ * file was already removed) should never block updating the parent document.
+ */
+export async function deleteImageFromStorage(
+  bucketId: string,
+  fileId: string,
+): Promise<void> {
+  try {
+    await storage.deleteFile({ bucketId, fileId });
+  } catch {
+    // Orphaned files are harmless; don't fail the surrounding operation.
+  }
+}

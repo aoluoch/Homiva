@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Role } from "appwrite";
 import { formatAppwriteError, tablesDB } from "@/lib/appwrite";
-import { uploadImageToStorage } from "@/lib/storage";
+import { deleteImageFromStorage, uploadImageToStorage } from "@/lib/storage";
 import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { ListingType, Property } from "@/types/models";
@@ -122,13 +122,39 @@ export function useUpdateProperty() {
       property,
       values,
       newFiles,
+      keptImageIds,
+      coverImageId,
     }: {
       property: Property;
       values: PropertyFormValues;
       newFiles: File[];
+      /** Existing image ids the owner chose to keep, in display order. */
+      keptImageIds?: string[];
+      /** Preferred cover image id; must resolve to one of the final images. */
+      coverImageId?: string | null;
     }) => {
+      const originalIds = property.imageIds ?? [];
+      const kept = keptImageIds ?? originalIds;
       const newImageIds = newFiles.length ? await uploadImages(newFiles) : [];
-      const imageIds = [...(property.imageIds ?? []), ...newImageIds];
+      const imageIds = [...kept, ...newImageIds];
+
+      // Remove any images the owner deleted from Storage so they don't linger
+      // as orphaned files (best-effort — never blocks the update).
+      const removedIds = originalIds.filter((existingId) => !kept.includes(existingId));
+      await Promise.all(
+        removedIds.map((removedId) =>
+          deleteImageFromStorage(
+            appwriteConfig.buckets.propertyImages,
+            removedId,
+          ),
+        ),
+      );
+
+      const cover =
+        coverImageId && imageIds.includes(coverImageId)
+          ? coverImageId
+          : (imageIds[0] ?? null);
+
       // Editing unpublishes the listing — drop public read until admin
       // re-verifies location and re-approves.
       const permissions = (property.$permissions ?? []).filter(
@@ -142,7 +168,7 @@ export function useUpdateProperty() {
         data: {
           ...normalizeListingValues(values),
           imageIds,
-          coverImageId: imageIds[0] ?? null,
+          coverImageId: cover,
           // Editing sends the listing back to review.
           status: "pending",
           locationVerificationStatus: "pending",
