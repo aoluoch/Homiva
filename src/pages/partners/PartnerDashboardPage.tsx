@@ -219,8 +219,19 @@ function ProfileForm({ company }: { company?: import("@/types/models").PartnerCo
 
 function SubscriptionPanel({ company }: { company: import("@/types/models").PartnerCompany }) {
   const subscribe = useSubscribePartnerCompany();
+  const isPublished =
+    company.status === "approved" && company.subscriptionStatus === "active";
   return (
     <div className="mt-6 grid max-w-md gap-4">
+      <p className="text-sm text-muted-foreground">
+        {isPublished
+          ? "Your company is live in the public partner directory."
+          : company.subscriptionStatus === "active"
+            ? "Plan paid. Your profile will appear in the directory once Homiva approves it."
+            : company.status === "approved"
+              ? "Your profile is approved. Choose a monthly plan to appear in the public directory."
+              : "You can pay now. The profile goes live after Homiva approves it and the plan is active."}
+      </p>
       {SUBSCRIPTION_PLANS.map((plan) => (
         <Card
           key={plan.key}

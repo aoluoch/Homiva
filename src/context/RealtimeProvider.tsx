@@ -16,6 +16,8 @@ const PUBLIC_TABLES: TableId[] = [
   TABLES.storefronts,
   TABLES.products,
   TABLES.reviews,
+  TABLES.partnerCompanies,
+  TABLES.partnerPortfolioImages,
 ];
 
 const tableQueryKeys: Partial<Record<TableId, string[][]>> = {

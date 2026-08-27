@@ -418,11 +418,16 @@ export default async ({ req, res, log, error }) => {
             tableId: T.partnerCompanies,
             rowId: resolvedTargetId,
           });
-          if (company.ownerId !== callerId) {
+          const ownerId = rowField(company, "ownerId");
+          const companyStatus = rowField(company, "status");
+          if (ownerId !== callerId) {
             return fail("You can only subscribe your own partner company profile.", 403);
           }
-          if (company.status !== "approved") {
-            return fail("Partner company must be approved before subscription can publish it.");
+          // Partners typically pay immediately after submitting a profile, before
+          // an admin has approved it. Charge and mark the subscription active now;
+          // the public directory still requires status === "approved".
+          if (companyStatus === "rejected" || companyStatus === "suspended") {
+            return fail("This partner company cannot be published.");
           }
         } else if (storefrontId) {
           const store = await tablesDB.getRow({
@@ -430,13 +435,39 @@ export default async ({ req, res, log, error }) => {
             tableId: T.storefronts,
             rowId: storefrontId,
           });
-          if (store.ownerId !== callerId) {
+          if (rowField(store, "ownerId") !== callerId) {
             return fail("You can only subscribe your own storefront.", 403);
           }
         }
-        await recordPayment();
         const now = new Date();
         const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const expiryIso = expiry.toISOString();
+        // Publish the paid profile before recording payment rows so a later
+        // bookkeeping failure cannot leave a charged partner unpublished.
+        if (resolvedTargetType === "partner_company") {
+          await tablesDB.updateRow({
+            databaseId: DB,
+            tableId: T.partnerCompanies,
+            rowId: resolvedTargetId,
+            data: {
+              plan,
+              subscriptionStatus: "active",
+              subscriptionExpiry: expiryIso,
+            },
+          });
+        } else if (storefrontId) {
+          await tablesDB.updateRow({
+            databaseId: DB,
+            tableId: T.storefronts,
+            rowId: storefrontId,
+            data: {
+              plan,
+              subscriptionStatus: "active",
+              subscriptionExpiry: expiryIso,
+            },
+          });
+        }
+        await recordPayment();
         const sub = await tablesDB.createRow({
           databaseId: DB,
           tableId: T.subscriptions,
@@ -451,41 +482,10 @@ export default async ({ req, res, log, error }) => {
             status: "active",
             reference,
             startedAt: now.toISOString(),
-            expiresAt: expiry.toISOString(),
+            expiresAt: expiryIso,
           },
           permissions: [...userPerms, Permission.update(Role.user(callerId))],
         });
-        if (resolvedTargetType === "partner_company") {
-          try {
-            await tablesDB.updateRow({
-              databaseId: DB,
-              tableId: T.partnerCompanies,
-              rowId: resolvedTargetId,
-              data: {
-                plan,
-                subscriptionStatus: "active",
-                subscriptionExpiry: expiry.toISOString(),
-              },
-            });
-          } catch (e) {
-            log(`partner company plan update note: ${e.message}`);
-          }
-        } else if (storefrontId) {
-          try {
-            await tablesDB.updateRow({
-              databaseId: DB,
-              tableId: T.storefronts,
-              rowId: storefrontId,
-              data: {
-                plan,
-                subscriptionStatus: "active",
-                subscriptionExpiry: expiry.toISOString(),
-              },
-            });
-          } catch (e) {
-            log(`storefront plan update note: ${e.message}`);
-          }
-        }
         return res.json({ ok: true, subscription: sub });
       }
 
@@ -497,6 +497,12 @@ export default async ({ req, res, log, error }) => {
     return fail(e.message || "Fulfillment failed.", 500);
   }
 };
+
+function rowField(row, key) {
+  if (!row) return undefined;
+  if (row[key] !== undefined && row[key] !== null) return row[key];
+  return row.data?.[key];
+}
 
 async function profileName(tablesDB, userId) {
   try {

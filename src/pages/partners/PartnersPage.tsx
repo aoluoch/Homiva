@@ -20,7 +20,7 @@ function logoUrl(fileId?: string) {
 export default function PartnersPage() {
   const [params, setParams] = useSearchParams();
   const category = params.get("category") ?? "";
-  const { data, isLoading } = usePartnerCompanies(category);
+  const { data, isLoading, isError } = usePartnerCompanies(category);
 
   const update = (value: string) => {
     const next = new URLSearchParams(params);
@@ -64,6 +64,12 @@ export default function PartnersPage() {
             <Skeleton key={i} className="h-40 w-full rounded-xl" />
           ))}
         </div>
+      ) : isError ? (
+        <EmptyState
+          icon={BriefcaseBusiness}
+          title="Couldn't load partner companies"
+          description="The partner directory could not be loaded. Refresh the page to try again."
+        />
       ) : data && data.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {data.map((company) => {

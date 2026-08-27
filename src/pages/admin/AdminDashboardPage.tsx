@@ -98,6 +98,7 @@ import {
   MARKETPLACE_CATEGORIES,
   PARTNER_CATEGORIES,
   PRODUCT_CONDITIONS,
+  TEAMS,
 } from "@/lib/config";
 import { formatKES, initials, timeAgo } from "@/lib/utils";
 import type {
@@ -111,6 +112,48 @@ import type {
   ServiceRequest,
 } from "@/types/models";
 import { cn } from "@/lib/utils";
+
+const APPLICATION_GROUPS = [
+  {
+    key: "property",
+    label: "Agents & landlords",
+    emptyTitle: "No agent or landlord applications",
+    emptyDescription:
+      "Real estate agent and landlord applications will appear here.",
+    roles: [TEAMS.agents, TEAMS.landlords],
+  },
+  {
+    key: "airbnb",
+    label: "Airbnb owners",
+    emptyTitle: "No Airbnb owner applications",
+    emptyDescription: "Short-stay host applications will appear here.",
+    roles: [TEAMS.airbnbOwners],
+  },
+  {
+    key: "partners",
+    label: "Partners",
+    emptyTitle: "No partner applications",
+    emptyDescription:
+      "Mover, cleaning company and interior design applications will appear here.",
+    roles: [TEAMS.movers, TEAMS.cleaningCompanies, TEAMS.interiorDesigners],
+  },
+] as const;
+
+type ApplicationGroupKey = (typeof APPLICATION_GROUPS)[number]["key"];
+
+function applicationsInGroup(
+  applications: RoleApplication[],
+  group: (typeof APPLICATION_GROUPS)[number],
+) {
+  const roles = new Set<string>(group.roles);
+  return applications.filter((application) => roles.has(application.role));
+}
+
+function sortForReview(applications: RoleApplication[]) {
+  const rank = (status: string) =>
+    status === "pending" ? 0 : status === "suspended" ? 1 : 2;
+  return [...applications].sort((a, b) => rank(a.status) - rank(b.status));
+}
 
 export default function AdminDashboardPage() {
   const { data: stats, isLoading: loadingStats } = useAdminStats();
@@ -147,6 +190,15 @@ export default function AdminDashboardPage() {
   }, [profiles]);
 
   const pendingApps = applications.filter((a) => a.status === "pending");
+  const pendingAppsByGroup = useMemo(() => {
+    const counts = {} as Record<ApplicationGroupKey, number>;
+    for (const group of APPLICATION_GROUPS) {
+      counts[group.key] = applicationsInGroup(applications, group).filter(
+        (application) => application.status === "pending",
+      ).length;
+    }
+    return counts;
+  }, [applications]);
   const pendingProps = properties?.filter((p) => p.status === "pending") ?? [];
   const pendingProducts = products?.filter((p) => p.status === "pending") ?? [];
   const pendingPartners = partners?.filter((p) => p.status === "pending") ?? [];
@@ -263,24 +315,34 @@ export default function AdminDashboardPage() {
         <TabsContent value="applications" className="mt-6">
           {loadingApps ? (
             <LoadingRows />
-          ) : applications.length > 0 ? (
-            <div className="space-y-3">
-              {applications.map((a) => (
-                <ApplicationRow key={a.$id} application={a} />
-              ))}
-              <LoadMoreButton
-                hasMore={hasMoreApps}
-                loading={loadingMoreApps}
-                onLoadMore={loadMoreApps}
-                label="Load more applications"
-              />
-            </div>
           ) : (
-            <EmptyState
-              icon={Inbox}
-              title="No applications"
-              description="Role applications from users will appear here."
-            />
+            <Tabs defaultValue="property">
+              <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:px-0">
+                <TabsList className="h-auto min-w-max justify-start gap-1">
+                  {APPLICATION_GROUPS.map((group) => (
+                    <TabsTrigger key={group.key} value={group.key} className="h-9">
+                      {group.label}
+                      {pendingAppsByGroup[group.key] > 0 && (
+                        <Badge variant="accent" className="ml-2">
+                          {pendingAppsByGroup[group.key]}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+              {APPLICATION_GROUPS.map((group) => (
+                <TabsContent key={group.key} value={group.key} className="mt-1">
+                  <ApplicationGroupQueue
+                    group={group}
+                    applications={applicationsInGroup(applications, group)}
+                    hasMore={hasMoreApps}
+                    loadingMore={loadingMoreApps}
+                    onLoadMore={loadMoreApps}
+                  />
+                </TabsContent>
+              ))}
+            </Tabs>
           )}
         </TabsContent>
 
@@ -488,6 +550,96 @@ function AdminOverview({ stats }: { stats: AdminStats }) {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+const PARTNER_SUBTYPES = [
+  { key: "all", label: "All partners", roles: null as string[] | null },
+  { key: "movers", label: "Movers", roles: [TEAMS.movers] },
+  { key: "cleaning", label: "Cleaning", roles: [TEAMS.cleaningCompanies] },
+  { key: "interior", label: "Interior design", roles: [TEAMS.interiorDesigners] },
+] as const;
+
+function ApplicationGroupQueue({
+  group,
+  applications,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: {
+  group: (typeof APPLICATION_GROUPS)[number];
+  applications: RoleApplication[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  const [partnerSubtype, setPartnerSubtype] = useState("all");
+  const visible = useMemo(() => {
+    if (group.key !== "partners" || partnerSubtype === "all") {
+      return sortForReview(applications);
+    }
+    const selected = PARTNER_SUBTYPES.find((item) => item.key === partnerSubtype);
+    const roles = new Set(selected?.roles ?? []);
+    return sortForReview(
+      applications.filter((application) => roles.has(application.role)),
+    );
+  }, [applications, group.key, partnerSubtype]);
+  const pending = visible.filter((application) => application.status === "pending");
+  const reviewed = visible.filter((application) => application.status !== "pending");
+
+  return (
+    <div className="space-y-3">
+      {group.key === "partners" && (
+        <div className="flex flex-wrap gap-2">
+          {PARTNER_SUBTYPES.map((item) => (
+            <Button
+              key={item.key}
+              size="sm"
+              variant={partnerSubtype === item.key ? "default" : "outline"}
+              onClick={() => setPartnerSubtype(item.key)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      )}
+      {visible.length > 0 ? (
+        <>
+          {pending.length > 0 && (
+            <>
+              <h2 className="text-sm font-medium text-muted-foreground">
+                Needs review ({pending.length})
+              </h2>
+              {pending.map((application) => (
+                <ApplicationRow key={application.$id} application={application} />
+              ))}
+            </>
+          )}
+          {reviewed.length > 0 && (
+            <>
+              <h2 className="pt-1 text-sm font-medium text-muted-foreground">
+                Reviewed ({reviewed.length})
+              </h2>
+              {reviewed.map((application) => (
+                <ApplicationRow key={application.$id} application={application} />
+              ))}
+            </>
+          )}
+        </>
+      ) : (
+        <EmptyState
+          icon={Inbox}
+          title={group.emptyTitle}
+          description={group.emptyDescription}
+        />
+      )}
+      <LoadMoreButton
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+        label="Load more applications"
+      />
     </div>
   );
 }
@@ -919,6 +1071,10 @@ function PartnerCompanyRow({
                 </Badge>
               )}
               {company.featured && <Badge variant="accent">featured</Badge>}
+              {company.status === "approved" &&
+                company.subscriptionStatus !== "active" && (
+                  <Badge variant="warning">not on public directory</Badge>
+                )}
             </div>
 
             {ownerName && (
