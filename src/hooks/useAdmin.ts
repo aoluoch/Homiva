@@ -538,23 +538,55 @@ export function useResolveDispute() {
 // Buying enquiries (Module C) — admin visibility
 // ---------------------------------------------------------------------------
 
+function asMortgageEnquiry(row: unknown): MortgageEnquiry {
+  const record = row as Record<string, unknown>;
+  const nested = record.data;
+  const fields =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? { ...record, ...(nested as Record<string, unknown>) }
+      : record;
+  return {
+    ...(fields as unknown as MortgageEnquiry),
+    $id: String(record.$id ?? ""),
+    $createdAt: String(record.$createdAt ?? ""),
+    $updatedAt: String(record.$updatedAt ?? ""),
+    $permissions: (record.$permissions as string[]) ?? [],
+  };
+}
+
+function asViewingRequest(row: unknown): ViewingRequest {
+  const record = row as Record<string, unknown>;
+  const nested = record.data;
+  const fields =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? { ...record, ...(nested as Record<string, unknown>) }
+      : record;
+  return {
+    ...(fields as unknown as ViewingRequest),
+    $id: String(record.$id ?? ""),
+    $createdAt: String(record.$createdAt ?? ""),
+    $updatedAt: String(record.$updatedAt ?? ""),
+    $permissions: (record.$permissions as string[]) ?? [],
+  };
+}
+
 export function useAdminMortgageEnquiries() {
   const enabled = useAdminEnabled();
-  return useQuery({
+  const result = useAppwriteInfiniteRows<MortgageEnquiry>({
     enabled,
     queryKey: ["admin", "mortgage-enquiries"],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
-        databaseId: DB,
-        tableId: TABLES.mortgageEnquiries,
-        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
-      });
-      return res.rows as unknown as MortgageEnquiry[];
-    },
+    tableId: TABLES.mortgageEnquiries,
+    pageSize: PAGE_SIZE.admin,
+    buildQueries: () => [Query.orderDesc("$createdAt")],
   });
+  return {
+    ...result,
+    items: result.items.map(asMortgageEnquiry),
+  };
 }
 
 export function useUpdateMortgageEnquiry() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -565,32 +597,78 @@ export function useUpdateMortgageEnquiry() {
       id: string;
       status: string;
       note?: string;
-    }) =>
-      tablesDB.updateRow({
+    }) => {
+      const updated = await tablesDB.updateRow({
         databaseId: DB,
         tableId: TABLES.mortgageEnquiries,
         rowId: id,
         data: { status, ...(note !== undefined ? { note } : {}) },
-      }),
+      });
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: `mortgage_${status}`,
+        targetType: "mortgage_enquiry",
+        targetId: id,
+        summary: `Mortgage enquiry marked ${status}.`,
+      });
+      return updated;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "mortgage-enquiries"] });
       qc.invalidateQueries({ queryKey: ["my-mortgage-enquiries"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }
 
 export function useAdminViewingRequests() {
   const enabled = useAdminEnabled();
-  return useQuery({
+  const result = useAppwriteInfiniteRows<ViewingRequest>({
     enabled,
     queryKey: ["admin", "viewing-requests"],
-    queryFn: async () => {
-      const res = await tablesDB.listRows({
+    tableId: TABLES.viewingRequests,
+    pageSize: PAGE_SIZE.admin,
+    buildQueries: () => [Query.orderDesc("$createdAt")],
+  });
+  return {
+    ...result,
+    items: result.items.map(asViewingRequest),
+  };
+}
+
+export function useAdminUpdateViewingRequest() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      note,
+    }: {
+      id: string;
+      status: string;
+      note?: string;
+    }) => {
+      const updated = await tablesDB.updateRow({
         databaseId: DB,
         tableId: TABLES.viewingRequests,
-        queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
+        rowId: id,
+        data: { status, ...(note !== undefined ? { note } : {}) },
       });
-      return res.rows as unknown as ViewingRequest[];
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: `viewing_${status}`,
+        targetType: "viewing_request",
+        targetId: id,
+        summary: `Viewing request marked ${status}.`,
+      });
+      return updated;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "viewing-requests"] });
+      qc.invalidateQueries({ queryKey: ["my-viewing-requests"] });
+      qc.invalidateQueries({ queryKey: ["owner-viewing-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
     },
   });
 }

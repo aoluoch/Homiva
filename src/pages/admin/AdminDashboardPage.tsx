@@ -6,7 +6,9 @@ import {
   BadgeCheck,
   BarChart3,
   Building2,
+  Calculator,
   CalendarCheck,
+  CalendarClock,
   Check,
   CheckCircle2,
   Clock,
@@ -71,7 +73,10 @@ import {
   useAdminBookings,
   useAdminBookingProperties,
   useAdminInquiries,
+  useAdminMortgageEnquiries,
   useAdminOrders,
+  useAdminUpdateViewingRequest,
+  useAdminViewingRequests,
   useUpdateInquiryStatus,
   useAdminOrderProducts,
   useAdminPartnerCompanies,
@@ -81,6 +86,7 @@ import {
   usePendingApplications,
   usePendingProducts,
   usePendingProperties,
+  useUpdateMortgageEnquiry,
   type AdminStats,
 } from "@/hooks/useAdmin";
 import {
@@ -107,9 +113,11 @@ import {
 import {
   appwriteConfig,
   MARKETPLACE_CATEGORIES,
+  MORTGAGE_ENQUIRY_STATUSES,
   PARTNER_CATEGORIES,
   PRODUCT_CONDITIONS,
   TEAMS,
+  VIEWING_REQUEST_STATUSES,
 } from "@/lib/config";
 import { formatKES, initials, timeAgo } from "@/lib/utils";
 import {
@@ -124,6 +132,7 @@ import type {
   ApplicationStatus,
   Booking,
   Inquiry,
+  MortgageEnquiry,
   Order,
   Product,
   PartnerCompany,
@@ -131,6 +140,7 @@ import type {
   PropertyStatus,
   RoleApplication,
   ServiceRequest,
+  ViewingRequest,
 } from "@/types/models";
 import { cn } from "@/lib/utils";
 
@@ -212,6 +222,22 @@ export default function AdminDashboardPage() {
     total: inquiriesTotal,
   } = useAdminInquiries();
   const {
+    items: viewingRequests,
+    isLoading: loadingViewings,
+    hasMore: hasMoreViewings,
+    loadMore: loadMoreViewings,
+    isFetchingNextPage: loadingMoreViewings,
+    total: viewingsTotal,
+  } = useAdminViewingRequests();
+  const {
+    items: mortgageEnquiries,
+    isLoading: loadingMortgages,
+    hasMore: hasMoreMortgages,
+    loadMore: loadMoreMortgages,
+    isFetchingNextPage: loadingMoreMortgages,
+    total: mortgagesTotal,
+  } = useAdminMortgageEnquiries();
+  const {
     items: auditLogs,
     isLoading: loadingAuditLogs,
     hasMore: hasMoreAudit,
@@ -256,6 +282,12 @@ export default function AdminDashboardPage() {
     (booking) => booking.status === "confirmed" || booking.status === "completed",
   );
   const openInquiries = inquiries.filter((inquiry) => inquiry.status === "open");
+  const openViewings = viewingRequests.filter(
+    (request) => request.status === "requested",
+  );
+  const newMortgages = mortgageEnquiries.filter(
+    (enquiry) => enquiry.status === "new",
+  );
 
   return (
     <div className="container max-w-7xl py-5 sm:py-8">
@@ -309,6 +341,24 @@ export default function AdminDashboardPage() {
               {openInquiries.length > 0 && (
                 <Badge variant="accent" className="ml-2">
                   {openInquiries.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="viewings" className="h-9">
+              <CalendarClock className="mr-1 h-4 w-4" />
+              Viewings
+              {openViewings.length > 0 && (
+                <Badge variant="accent" className="ml-2">
+                  {openViewings.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="mortgage" className="h-9">
+              <Calculator className="mr-1 h-4 w-4" />
+              Mortgage
+              {newMortgages.length > 0 && (
+                <Badge variant="accent" className="ml-2">
+                  {newMortgages.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -442,6 +492,30 @@ export default function AdminDashboardPage() {
             onLoadMore={loadMoreInquiries}
             total={inquiriesTotal}
             emailByUserId={emailByUserId}
+          />
+        </TabsContent>
+
+        <TabsContent value="viewings" className="mt-6">
+          <ViewingRequestsPanel
+            requests={viewingRequests}
+            isLoading={loadingViewings}
+            hasMore={hasMoreViewings}
+            loadingMore={loadingMoreViewings}
+            onLoadMore={loadMoreViewings}
+            total={viewingsTotal}
+            emailByUserId={emailByUserId}
+            nameByUserId={actorNameById}
+          />
+        </TabsContent>
+
+        <TabsContent value="mortgage" className="mt-6">
+          <MortgageEnquiriesPanel
+            enquiries={mortgageEnquiries}
+            isLoading={loadingMortgages}
+            hasMore={hasMoreMortgages}
+            loadingMore={loadingMoreMortgages}
+            onLoadMore={loadMoreMortgages}
+            total={mortgagesTotal}
           />
         </TabsContent>
 
@@ -1725,6 +1799,494 @@ function InquiryCard({
           {inquiry.propertyId && (
             <a
               href={`/properties/${inquiry.propertyId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              Listing
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Viewing request queue
+// ---------------------------------------------------------------------------
+
+const viewingStatusVariant: Record<
+  string,
+  "success" | "warning" | "destructive" | "secondary"
+> = {
+  requested: "warning",
+  confirmed: "success",
+  declined: "destructive",
+  completed: "secondary",
+};
+
+function ViewingRequestsPanel({
+  requests,
+  isLoading,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  total,
+  emailByUserId,
+  nameByUserId,
+}: {
+  requests: ViewingRequest[];
+  isLoading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  total: number;
+  emailByUserId: Record<string, string>;
+  nameByUserId: Record<string, string>;
+}) {
+  const [filter, setFilter] = useState<"all" | ViewingRequest["status"]>("all");
+
+  if (isLoading) return <LoadingRows />;
+  if (requests.length === 0) {
+    return (
+      <EmptyState
+        icon={CalendarClock}
+        title="No viewing requests yet"
+        description="When a buyer or renter asks Homiva to arrange a visit, the request lands here."
+      />
+    );
+  }
+
+  const countFor = (status: ViewingRequest["status"]) =>
+    requests.filter((request) => request.status === status).length;
+  const filters = [
+    { key: "all" as const, label: "All", count: total || requests.length },
+    { key: "requested" as const, label: "Requested", count: countFor("requested") },
+    { key: "confirmed" as const, label: "Confirmed", count: countFor("confirmed") },
+    { key: "declined" as const, label: "Declined", count: countFor("declined") },
+    { key: "completed" as const, label: "Completed", count: countFor("completed") },
+  ];
+  const filtered =
+    filter === "all"
+      ? requests
+      : requests.filter((request) => request.status === filter);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Viewing requests from sale and rental listings. Confirm a time with the
+        guest, then mark the visit confirmed, declined, or completed.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {filters.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setFilter(item.key)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === item.key
+                ? "border-primary bg-primary/10 text-primary"
+                : "hover:bg-secondary",
+            )}
+          >
+            {item.label}
+            <span className="ml-1 text-muted-foreground">({item.count})</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={CalendarClock}
+          title="Nothing here"
+          description="No viewing requests match this filter."
+        />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((request) => (
+            <ViewingRequestCard
+              key={request.$id}
+              request={request}
+              email={emailByUserId[request.userId] || ""}
+              ownerName={nameByUserId[request.ownerId] || ""}
+            />
+          ))}
+        </div>
+      )}
+      <LoadMoreButton
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+        label="Load more viewing requests"
+      />
+    </div>
+  );
+}
+
+function ViewingRequestCard({
+  request,
+  email,
+  ownerName,
+}: {
+  request: ViewingRequest;
+  email: string;
+  ownerName: string;
+}) {
+  const update = useAdminUpdateViewingRequest();
+  const [status, setStatus] = useState(request.status || "requested");
+  const [note, setNote] = useState(request.note ?? "");
+  const phone = request.phone?.trim();
+
+  useEffect(() => {
+    setStatus(request.status || "requested");
+    setNote(request.note ?? "");
+  }, [request.status, request.note]);
+
+  const save = () => {
+    update.mutate(
+      { id: request.$id, status, note },
+      {
+        onSuccess: () => toast.success(`Viewing marked ${status}.`),
+        onError: (err) => toast.error((err as Error).message),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_220px]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 break-words font-medium">
+              {request.propertyTitle || "Property viewing"}
+            </p>
+            <Badge variant={viewingStatusVariant[request.status] ?? "secondary"}>
+              {request.status}
+            </Badge>
+          </div>
+          <div className="mt-2 space-y-1 text-sm">
+            <p>
+              Preferred:{" "}
+              <span className="font-medium">
+                {formatStayDate(request.preferredDate)}
+              </span>
+            </p>
+            {request.alternateDate ? (
+              <p className="text-muted-foreground">
+                Alternate: {formatStayDate(request.alternateDate)}
+              </p>
+            ) : null}
+          </div>
+          {request.message ? (
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm">
+              {request.message}
+            </p>
+          ) : null}
+          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+            <p className="flex items-center gap-1">
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span className="break-words">
+                {request.userName || "Homiva user"}
+              </span>
+            </p>
+            {phone ? (
+              <a
+                href={`tel:${phone}`}
+                className="flex w-fit items-center gap-1 font-medium text-primary hover:underline"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {phone}
+              </a>
+            ) : (
+              <p className="text-xs">No phone provided</p>
+            )}
+            {email ? (
+              <a
+                href={`mailto:${email}`}
+                className="flex w-fit items-center gap-1 break-all hover:text-primary"
+              >
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                {email}
+              </a>
+            ) : null}
+            <p className="text-xs">
+              Listing owner: {ownerName || "Listing owner"}
+            </p>
+            <p className="flex items-center gap-1 text-xs">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              {timeAgo(request.$createdAt)}
+            </p>
+          </div>
+        </div>
+        <div className="grid min-w-0 content-start gap-2">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VIEWING_REQUEST_STATUSES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Textarea
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Internal note for Homiva…"
+          />
+          <Button onClick={save} disabled={update.isPending}>
+            {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save status
+          </Button>
+          {request.propertyId && (
+            <a
+              href={`/properties/${request.propertyId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              Listing
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mortgage enquiry queue
+// ---------------------------------------------------------------------------
+
+const mortgageStatusVariant: Record<
+  string,
+  "success" | "warning" | "destructive" | "secondary"
+> = {
+  new: "warning",
+  contacted: "success",
+  closed: "secondary",
+};
+
+function MortgageEnquiriesPanel({
+  enquiries,
+  isLoading,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  total,
+}: {
+  enquiries: MortgageEnquiry[];
+  isLoading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  total: number;
+}) {
+  const [filter, setFilter] = useState<"all" | MortgageEnquiry["status"]>("all");
+
+  if (isLoading) return <LoadingRows />;
+  if (enquiries.length === 0) {
+    return (
+      <EmptyState
+        icon={Calculator}
+        title="No mortgage enquiries yet"
+        description="When someone sends figures from a sale listing calculator, the enquiry lands here."
+      />
+    );
+  }
+
+  const countFor = (status: MortgageEnquiry["status"]) =>
+    enquiries.filter((enquiry) => enquiry.status === status).length;
+  const filters = [
+    { key: "all" as const, label: "All", count: total || enquiries.length },
+    { key: "new" as const, label: "New", count: countFor("new") },
+    { key: "contacted" as const, label: "Contacted", count: countFor("contacted") },
+    { key: "closed" as const, label: "Closed", count: countFor("closed") },
+  ];
+  const filtered =
+    filter === "all"
+      ? enquiries
+      : enquiries.filter((enquiry) => enquiry.status === filter);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Indicative mortgage figures sent from sale listings. Follow up with the
+        buyer, then mark the enquiry contacted or closed.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {filters.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setFilter(item.key)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === item.key
+                ? "border-primary bg-primary/10 text-primary"
+                : "hover:bg-secondary",
+            )}
+          >
+            {item.label}
+            <span className="ml-1 text-muted-foreground">({item.count})</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Calculator}
+          title="Nothing here"
+          description="No mortgage enquiries match this filter."
+        />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((enquiry) => (
+            <MortgageEnquiryCard key={enquiry.$id} enquiry={enquiry} />
+          ))}
+        </div>
+      )}
+      <LoadMoreButton
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+        label="Load more mortgage enquiries"
+      />
+    </div>
+  );
+}
+
+function MortgageEnquiryCard({ enquiry }: { enquiry: MortgageEnquiry }) {
+  const update = useUpdateMortgageEnquiry();
+  const [status, setStatus] = useState(enquiry.status || "new");
+  const [note, setNote] = useState(enquiry.note ?? "");
+  const phone = enquiry.phone?.trim();
+
+  useEffect(() => {
+    setStatus(enquiry.status || "new");
+    setNote(enquiry.note ?? "");
+  }, [enquiry.status, enquiry.note]);
+
+  const save = () => {
+    update.mutate(
+      { id: enquiry.$id, status, note },
+      {
+        onSuccess: () => toast.success(`Mortgage enquiry marked ${status}.`),
+        onError: (err) => toast.error((err as Error).message),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_220px]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 break-words font-medium">
+              {enquiry.propertyTitle || "Mortgage enquiry"}
+            </p>
+            <Badge variant={mortgageStatusVariant[enquiry.status] ?? "secondary"}>
+              {enquiry.status}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Listing price {formatKES(enquiry.propertyPrice)}
+          </p>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-muted-foreground">Deposit</dt>
+              <dd className="font-medium">{formatKES(enquiry.deposit)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Loan</dt>
+              <dd className="font-medium">{formatKES(enquiry.loanAmount)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Est. monthly</dt>
+              <dd className="font-medium">{formatKES(enquiry.monthlyRepayment)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Term</dt>
+              <dd className="font-medium">{enquiry.termYears} years</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Rate</dt>
+              <dd className="font-medium">{enquiry.interestRate}%</dd>
+            </div>
+            {enquiry.monthlyIncome ? (
+              <div>
+                <dt className="text-muted-foreground">Income</dt>
+                <dd className="font-medium">{formatKES(enquiry.monthlyIncome)}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {enquiry.message ? (
+            <p className="mt-3 whitespace-pre-wrap break-words text-sm">
+              {enquiry.message}
+            </p>
+          ) : null}
+          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+            <p className="flex items-center gap-1">
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span className="break-words">
+                {enquiry.userName || "Homiva user"}
+              </span>
+            </p>
+            {phone ? (
+              <a
+                href={`tel:${phone}`}
+                className="flex w-fit items-center gap-1 font-medium text-primary hover:underline"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {phone}
+              </a>
+            ) : (
+              <p className="text-xs">No phone provided</p>
+            )}
+            {enquiry.userEmail ? (
+              <a
+                href={`mailto:${enquiry.userEmail}`}
+                className="flex w-fit items-center gap-1 break-all hover:text-primary"
+              >
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                {enquiry.userEmail}
+              </a>
+            ) : null}
+            <p className="flex items-center gap-1 text-xs">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              {timeAgo(enquiry.$createdAt)}
+            </p>
+          </div>
+        </div>
+        <div className="grid min-w-0 content-start gap-2">
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MORTGAGE_ENQUIRY_STATUSES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Textarea
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Internal note for Homiva…"
+          />
+          <Button onClick={save} disabled={update.isPending}>
+            {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save status
+          </Button>
+          {enquiry.propertyId && (
+            <a
+              href={`/properties/${enquiry.propertyId}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center justify-center gap-1 text-sm font-medium text-primary hover:underline"

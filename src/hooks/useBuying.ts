@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES } from "@/lib/config";
+import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { MortgageEnquiry, Property, ViewingRequest } from "@/types/models";
 
@@ -50,6 +50,8 @@ export function useCreateMortgageEnquiry() {
         },
         permissions: [
           Permission.read(Role.user(user.$id)),
+          Permission.read(Role.team(TEAMS.admins)),
+          Permission.update(Role.team(TEAMS.admins)),
         ],
       }) as unknown as MortgageEnquiry;
     },
@@ -115,6 +117,14 @@ export function useCreateViewingRequest() {
         },
         permissions: [
           Permission.read(Role.user(user.$id)),
+          Permission.read(Role.team(TEAMS.admins)),
+          Permission.update(Role.team(TEAMS.admins)),
+          ...(input.property.ownerId
+            ? [
+                Permission.read(Role.user(input.property.ownerId)),
+                Permission.update(Role.user(input.property.ownerId)),
+              ]
+            : []),
         ],
       }) as unknown as ViewingRequest;
     },
