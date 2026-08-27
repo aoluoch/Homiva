@@ -1,4 +1,4 @@
-import { filePreview } from "@/lib/appwrite";
+import { filePreview, fileView } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import type { Property } from "@/types/models";
 
@@ -14,14 +14,56 @@ export const PROPERTY_PLACEHOLDER =
      </svg>`,
   );
 
-export function propertyCover(
-  property: Pick<Property, "coverImageId" | "imageIds">,
+export function propertyGallery(
+  property?: Pick<Property, "coverImageId" | "imageIds"> | null,
+): string[] {
+  if (!property) return [];
+  const raw = property.imageIds as unknown;
+  let ids: string[] = [];
+  if (Array.isArray(raw)) {
+    ids = raw.filter(
+      (id): id is string => typeof id === "string" && id.trim().length > 0,
+    );
+  } else if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        ids = parsed.filter(
+          (id): id is string => typeof id === "string" && id.trim().length > 0,
+        );
+      }
+    } catch {
+      ids = raw
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+    }
+  }
+  const cover =
+    typeof property.coverImageId === "string" ? property.coverImageId.trim() : "";
+  if (cover && !ids.includes(cover)) ids.unshift(cover);
+  return [...new Set(ids)];
+}
+
+export function propertyImagePreview(
+  fileId: string,
   opts: { width?: number; height?: number } = {},
-): string {
-  const fileId = property.coverImageId ?? property.imageIds?.[0];
-  if (!fileId) return PROPERTY_PLACEHOLDER;
+) {
   return filePreview(appwriteConfig.buckets.propertyImages, fileId, {
     width: opts.width ?? 800,
     height: opts.height ?? 600,
   });
+}
+
+export function propertyImageView(fileId: string) {
+  return fileView(appwriteConfig.buckets.propertyImages, fileId);
+}
+
+export function propertyCover(
+  property: Pick<Property, "coverImageId" | "imageIds">,
+  opts: { width?: number; height?: number } = {},
+): string {
+  const fileId = propertyGallery(property)[0];
+  if (!fileId) return PROPERTY_PLACEHOLDER;
+  return propertyImagePreview(fileId, opts);
 }

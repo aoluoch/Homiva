@@ -541,6 +541,8 @@ async function main() {
   await str("properties", "ownerRole", 64);
   await str("properties", "contactPhone", 32);
   await str("properties", "contactEmail", 255);
+  await str("properties", "checkInTime", 16);
+  await str("properties", "checkOutTime", 16);
   await bool("properties", "featured", false);
   await str("properties", "rejectionReason", 1000);
 
@@ -704,9 +706,12 @@ async function main() {
   await str("bookings", "propertyTitle", 255);
   await str("bookings", "guestId", 64, true);
   await str("bookings", "guestName", 255);
+  await str("bookings", "guestEmail", 255);
   await str("bookings", "hostId", 64, true);
   await dt("bookings", "checkIn");
   await dt("bookings", "checkOut");
+  await str("bookings", "checkInTime", 16);
+  await str("bookings", "checkOutTime", 16);
   await int("bookings", "nights", false, 1);
   await int("bookings", "guests", false, 1);
   await int("bookings", "amount", false, 0);

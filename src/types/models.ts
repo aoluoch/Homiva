@@ -79,6 +79,8 @@ export interface Property extends BaseRow {
   ownerRole: string;
   contactPhone?: string;
   contactEmail?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
   featured: boolean;
   rejectionReason?: string;
 }
@@ -234,9 +236,12 @@ export interface Booking extends BaseRow {
   propertyTitle: string;
   guestId: string;
   guestName: string;
+  guestEmail?: string;
   hostId: string;
   checkIn: string; // ISO date
   checkOut: string; // ISO date
+  checkInTime?: string;
+  checkOutTime?: string;
   nights: number;
   guests: number;
   amount: number;

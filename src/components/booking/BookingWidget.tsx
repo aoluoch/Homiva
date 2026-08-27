@@ -101,7 +101,9 @@ export function BookingWidget({ property }: { property: Property }) {
       { property, checkIn, checkOut, nights, guests },
       {
         onSuccess: () => {
-          toast.success("Booking confirmed! Enjoy your stay.");
+          toast.success(
+            "Booking confirmed! Check your email for dates, house times and directions.",
+          );
           navigate("/trips");
         },
         onError: (err) => toast.error((err as Error).message),

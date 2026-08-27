@@ -6,6 +6,7 @@ import {
   Bath,
   BedDouble,
   Check,
+  Clock,
   Heart,
   Loader2,
   Lock,
@@ -35,6 +36,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { cn, formatKES } from "@/lib/utils";
 import { VIEWING_FEE_KES } from "@/lib/config";
+import {
+  formatClockTime,
+  mapsDirectionsHref,
+  mapPreviewHref,
+  resolveCheckInTime,
+  resolveCheckOutTime,
+} from "@/lib/booking";
 import { filePreview } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
@@ -44,6 +52,7 @@ import {
   useViewingAccess,
   usePayViewingFee,
 } from "@/hooks/useViewing";
+import { useMyStayAccess } from "@/hooks/useBookings";
 import { useRecordView } from "@/hooks/useRecentlyViewed";
 import { useFavorites, useToggleFavorite } from "@/hooks/useFavorites";
 import { useCreateInquiry } from "@/hooks/useInquiries";
@@ -55,9 +64,12 @@ import { ReviewSection } from "@/components/reviews/ReviewSection";
 export default function PropertyDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: property, isLoading, isError } = useProperty(id);
   const { data: hasAccess } = useViewingAccess(id);
+  const { data: stay } = useMyStayAccess(
+    property?.listingType === "airbnb" ? id : undefined,
+  );
   const payFee = usePayViewingFee();
   const recordView = useRecordView();
   const { data: favorites } = useFavorites();
@@ -85,8 +97,14 @@ export default function PropertyDetailPage() {
     );
   }
 
-  const canUnlock = canUnlockPropertyViewing(property);
-  const unlocked = !!hasAccess && canUnlock;
+  const isAirbnb = property.listingType === "airbnb";
+  const isOwner = user?.$id === property.ownerId;
+  const canUnlock = !isAirbnb && canUnlockPropertyViewing(property);
+  const unlocked =
+    isOwner ||
+    isAdmin ||
+    (isAirbnb && !!stay) ||
+    (!isAirbnb && !!hasAccess && canUnlock);
   const isFavorited = favorites?.some((f) => f.propertyId === property.$id);
   const gallery = property.imageIds?.length
     ? property.imageIds
@@ -271,7 +289,11 @@ export default function PropertyDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="font-medium">{property.ownerName}</p>
+                <p className="font-medium">
+                  {isAirbnb && !unlocked
+                    ? "Host details hidden until you book"
+                    : property.ownerName}
+                </p>
                 <p className="text-sm capitalize text-muted-foreground">
                   {property.ownerRole.replace("_", " ")}
                 </p>
@@ -280,7 +302,26 @@ export default function PropertyDetailPage() {
               <Separator />
 
               {unlocked ? (
-                <UnlockedPanel property={property} />
+                <UnlockedPanel
+                  property={property}
+                  stay={isAirbnb ? stay : null}
+                />
+              ) : isAirbnb ? (
+                <div className="rounded-lg border border-dashed bg-secondary/40 p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Lock className="h-4 w-4 text-accent" />
+                    Host details locked
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Book this stay to unlock the host&apos;s phone, email, exact
+                    address and map directions. Only the guest who books can see
+                    them.
+                  </p>
+                  <p className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                    <ShieldCheck className="h-3 w-3" /> Released after a
+                    confirmed booking
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-lg border border-dashed bg-secondary/40 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -347,16 +388,36 @@ export default function PropertyDetailPage() {
 
 function UnlockedPanel({
   property,
+  stay,
 }: {
   property: import("@/types/models").Property;
+  stay?: import("@/types/models").Booking | null;
 }) {
+  const checkInTime = resolveCheckInTime(stay?.checkInTime || property.checkInTime);
+  const checkOutTime = resolveCheckOutTime(
+    stay?.checkOutTime || property.checkOutTime,
+  );
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-primary/5 p-3 text-sm">
         <div className="flex items-center gap-2 font-medium text-primary">
-          <Check className="h-4 w-4" /> Details unlocked
+          <Check className="h-4 w-4" />
+          {stay ? "Host details unlocked for your stay" : "Details unlocked"}
         </div>
       </div>
+      {stay && (
+        <div className="rounded-lg border bg-card p-3 text-sm">
+          <p className="flex items-center gap-2 font-medium">
+            <Clock className="h-4 w-4 text-primary" />
+            House times
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Check-in {formatClockTime(checkInTime)} · Check-out{" "}
+            {formatClockTime(checkOutTime)}
+          </p>
+        </div>
+      )}
       {property.address && (
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -376,15 +437,22 @@ function UnlockedPanel({
         />
       ) : null}
       {(property.latitude && property.longitude) || property.address ? (
-        <Button asChild variant="outline" className="w-full">
-          <a
-            href={mapHref(property)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <MapPin className="h-4 w-4" /> Open map
-          </a>
-        </Button>
+        <div className="grid gap-2">
+          <Button asChild className="w-full">
+            <a
+              href={mapsDirectionsHref(property)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MapPin className="h-4 w-4" /> Get directions
+            </a>
+          </Button>
+          <Button asChild variant="outline" className="w-full">
+            <a href={mapPreviewHref(property)} target="_blank" rel="noreferrer">
+              Open map
+            </a>
+          </Button>
+        </div>
       ) : null}
       {property.contactPhone && (
         <a
@@ -405,20 +473,6 @@ function UnlockedPanel({
       <InquiryDialog property={property} />
     </div>
   );
-}
-
-function mapHref(property: import("@/types/models").Property) {
-  if (property.latitude && property.longitude) {
-    return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(
-      property.latitude,
-    )}&mlon=${encodeURIComponent(property.longitude)}#map=16/${
-      property.latitude
-    }/${property.longitude}`;
-  }
-  const query = [property.address, property.town, property.county, "Kenya"]
-    .filter(Boolean)
-    .join(", ");
-  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }
 
 function InquiryDialog({

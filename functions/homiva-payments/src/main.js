@@ -1,4 +1,4 @@
-import { Client, TablesDB, ID, Permission, Role, Query } from "node-appwrite";
+import { Client, TablesDB, ID, Permission, Role, Query, Messaging, Teams, Users } from "node-appwrite";
 
 /**
  * Homiva payments function.
@@ -8,7 +8,8 @@ import { Client, TablesDB, ID, Permission, Role, Query } from "node-appwrite";
  * purchase depending on `purpose`:
  *   - viewing_fee  -> unlock a property for the user (viewing_payments row)
  *   - service      -> mark a service_request as paid
- *   - booking      -> confirm an Airbnb booking
+ *   - booking      -> confirm an Airbnb booking, notify guest/host/admins,
+ *                     and email the guest dates, house times, amount and map
  *   - order        -> mark a marketplace order as paid + decrement stock
  *   - subscription -> activate a partner company or legacy storefront subscription (+30 days)
  *
@@ -18,6 +19,8 @@ import { Client, TablesDB, ID, Permission, Role, Query } from "node-appwrite";
  * Runtime secrets:
  *   PAYSTACK_SECRET_KEY  - required Appwrite function secret variable (sk_...)
  *                          Do not store the live key in the app .env file.
+ *   RESEND_API_KEY       - optional fallback for booking confirmation emails
+ *   APP_URL              - public site URL used in confirmation links
  * Auth:
  *   x-appwrite-user-id   - authenticated caller (injected by Appwrite)
  *   x-appwrite-key       - dynamic API key (recommended) OR APPWRITE_API_KEY env
@@ -45,6 +48,12 @@ const PLAN_PRICES = { basic: 2000 };
 const MARKETPLACE_DELIVERY_FEE_SETTING = "marketplace_delivery_fee_kes";
 const MARKETPLACE_DELIVERY_FEE_ROW_ID = "marketplace_delivery_fee";
 const DEFAULT_MARKETPLACE_DELIVERY_FEE_KES = 300;
+const DEFAULT_CHECK_IN_TIME = "15:00";
+const DEFAULT_CHECK_OUT_TIME = "11:00";
+const APP_URL =
+  process.env.APP_URL ||
+  process.env.HOMIVA_APP_URL ||
+  "https://homiva.appwrite.network";
 
 export default async ({ req, res, log, error }) => {
   const endpoint =
@@ -61,6 +70,9 @@ export default async ({ req, res, log, error }) => {
     .setProject(projectId)
     .setKey(apiKey);
   const tablesDB = new TablesDB(client);
+  const messaging = new Messaging(client);
+  const teams = new Teams(client);
+  const users = new Users(client);
 
   const fail = (message, code = 400) =>
     res.json({ ok: false, error: message }, code);
@@ -272,7 +284,9 @@ export default async ({ req, res, log, error }) => {
         const hasOverlap = await bookingOverlaps(tablesDB, propertyId, checkIn, checkOut);
         if (hasOverlap) return fail("Those dates are no longer available.", 409);
         await recordPayment();
-        const guestName = await profileName(tablesDB, callerId);
+        const guest = await profileOf(tablesDB, users, callerId);
+        const checkInTime = (property.checkInTime || "").trim() || DEFAULT_CHECK_IN_TIME;
+        const checkOutTime = (property.checkOutTime || "").trim() || DEFAULT_CHECK_OUT_TIME;
         const booking = await tablesDB.createRow({
           databaseId: DB,
           tableId: T.bookings,
@@ -281,10 +295,13 @@ export default async ({ req, res, log, error }) => {
             propertyId,
             propertyTitle: property.title || "",
             guestId: callerId,
-            guestName,
+            guestName: guest.name,
+            guestEmail: guest.email,
             hostId: property.ownerId || "",
             checkIn,
             checkOut,
+            checkInTime,
+            checkOutTime,
             nights,
             guests: guestCount,
             amount: amountKES,
@@ -297,7 +314,49 @@ export default async ({ req, res, log, error }) => {
             ...(property.ownerId ? [Permission.read(Role.user(property.ownerId))] : []),
           ],
         });
-        if (property.ownerId) await notify(property.ownerId, "New booking", `${guestName} booked ${property.title || "your listing"}.`, "/host/bookings");
+        const stayLabel = property.title || "your listing";
+        await notify(
+          callerId,
+          "Booking confirmed",
+          `Your stay at ${stayLabel} is confirmed. Host contact and directions are now unlocked.`,
+          "/trips",
+        );
+        if (property.ownerId) {
+          await notify(
+            property.ownerId,
+            "New booking",
+            `${guest.name} booked ${stayLabel}.`,
+            "/host/bookings",
+          );
+        }
+        const adminIds = await adminUserIds(teams);
+        await Promise.all(
+          adminIds
+            .filter((id) => id && id !== callerId && id !== property.ownerId)
+            .map((adminId) =>
+              notify(
+                adminId,
+                "Airbnb booking",
+                `${guest.name} booked ${stayLabel} · ${formatStayDate(checkIn)} → ${formatStayDate(checkOut)}.`,
+                "/admin?tab=bookings",
+              ),
+            ),
+        );
+        await sendBookingConfirmationEmail({
+          messaging,
+          log,
+          error,
+          guestId: callerId,
+          guest,
+          property,
+          checkIn,
+          checkOut,
+          checkInTime,
+          checkOutTime,
+          nights,
+          guests: guestCount,
+          amountKES,
+        });
         return res.json({ ok: true, booking });
       }
 
@@ -504,6 +563,33 @@ function rowField(row, key) {
   return row.data?.[key];
 }
 
+async function profileOf(tablesDB, users, userId) {
+  let name = "Homiva user";
+  let email = "";
+  try {
+    const list = await tablesDB.listRows({
+      databaseId: DB,
+      tableId: T.profiles,
+      queries: [Query.equal("userId", userId), Query.limit(1)],
+    });
+    const row = list.rows[0];
+    if (row?.name) name = row.name;
+    if (row?.email) email = row.email;
+  } catch {
+    // fall through to Users API
+  }
+  if (!email) {
+    try {
+      const account = await users.get({ userId });
+      email = account.email || "";
+      if (name === "Homiva user" && account.name) name = account.name;
+    } catch {
+      // guest email stays empty; in-app notification still works
+    }
+  }
+  return { name, email, userId };
+}
+
 async function profileName(tablesDB, userId) {
   try {
     const list = await tablesDB.listRows({
@@ -514,6 +600,214 @@ async function profileName(tablesDB, userId) {
     return list.rows[0]?.name || "Homiva user";
   } catch {
     return "Homiva user";
+  }
+}
+
+async function adminUserIds(teams) {
+  try {
+    const memberships = await teams.listMemberships({
+      teamId: "admins",
+      queries: [Query.limit(100)],
+    });
+    return [...new Set((memberships.memberships || []).map((m) => m.userId).filter(Boolean))];
+  } catch {
+    return [];
+  }
+}
+
+function formatStayDate(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return String(iso || "").slice(0, 10);
+  return date.toLocaleDateString("en-KE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatClockTime(value) {
+  const raw = String(value || "").trim() || DEFAULT_CHECK_IN_TIME;
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return raw;
+  const minutes = match[2];
+  let hours = Number(match[1]);
+  if (!Number.isFinite(hours)) return raw;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${suffix}`;
+}
+
+function formatKES(amount) {
+  return `KES ${Number(amount || 0).toLocaleString("en-KE")}`;
+}
+
+function mapsDirectionsHref(property) {
+  if (property.latitude && property.longitude) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+      `${property.latitude},${property.longitude}`,
+    )}`;
+  }
+  const query = [property.address, property.town, property.county, "Kenya"]
+    .filter(Boolean)
+    .join(", ");
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function bookingConfirmationHtml({
+  guestName,
+  property,
+  checkIn,
+  checkOut,
+  checkInTime,
+  checkOutTime,
+  nights,
+  guests,
+  amountKES,
+}) {
+  const title = escapeHtml(property.title || "your stay");
+  const location = escapeHtml(
+    [property.address, property.town, property.county].filter(Boolean).join(", ") ||
+      "Kenya",
+  );
+  const host = escapeHtml(property.ownerName || "your host");
+  const directions = mapsDirectionsHref(property);
+  const tripsUrl = `${APP_URL.replace(/\/$/, "")}/trips`;
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f6f4f0;font-family:Georgia,serif;color:#1f1b16;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f4f0;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
+        <tr><td style="background:#1b5e3b;color:#fff;padding:24px 28px;">
+          <p style="margin:0;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85;">Homiva</p>
+          <h1 style="margin:8px 0 0;font-size:24px;font-weight:700;">Your stay is confirmed</h1>
+        </td></tr>
+        <tr><td style="padding:28px;">
+          <p style="margin:0 0 16px;font-size:16px;">Hi ${escapeHtml(guestName)},</p>
+          <p style="margin:0 0 20px;line-height:1.5;">Payment was received and your booking at <strong>${title}</strong> is confirmed. Host contact and directions are now unlocked in your Homiva account.</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f4f0;border-radius:12px;">
+            <tr><td style="padding:16px 18px;">
+              <p style="margin:0 0 8px;font-size:18px;font-weight:700;">${title}</p>
+              <p style="margin:0 0 12px;color:#5c564e;">${location}</p>
+              <p style="margin:0;line-height:1.7;">
+                <strong>Dates:</strong> ${escapeHtml(formatStayDate(checkIn))} → ${escapeHtml(formatStayDate(checkOut))}<br/>
+                <strong>Check-in:</strong> ${escapeHtml(formatClockTime(checkInTime))}<br/>
+                <strong>Check-out:</strong> ${escapeHtml(formatClockTime(checkOutTime))}<br/>
+                <strong>Guests:</strong> ${escapeHtml(String(guests))} · <strong>Nights:</strong> ${escapeHtml(String(nights))}<br/>
+                <strong>Amount paid:</strong> ${escapeHtml(formatKES(amountKES))}<br/>
+                <strong>Host:</strong> ${host}
+              </p>
+            </td></tr>
+          </table>
+          <p style="margin:22px 0 0;">
+            <a href="${directions}" style="display:inline-block;background:#1b5e3b;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Get map directions</a>
+          </p>
+          <p style="margin:14px 0 0;">
+            <a href="${tripsUrl}" style="color:#1b5e3b;">View this trip in Homiva</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendBookingConfirmationEmail({
+  messaging,
+  log,
+  error,
+  guestId,
+  guest,
+  property,
+  checkIn,
+  checkOut,
+  checkInTime,
+  checkOutTime,
+  nights,
+  guests,
+  amountKES,
+}) {
+  const subject = `Booking confirmed · ${property.title || "your Homiva stay"}`;
+  const html = bookingConfirmationHtml({
+    guestName: guest.name,
+    property,
+    checkIn,
+    checkOut,
+    checkInTime,
+    checkOutTime,
+    nights,
+    guests,
+    amountKES,
+  });
+  const text = [
+    `Hi ${guest.name},`,
+    `Your stay at ${property.title || "the listing"} is confirmed.`,
+    `Dates: ${formatStayDate(checkIn)} → ${formatStayDate(checkOut)}`,
+    `Check-in: ${formatClockTime(checkInTime)}`,
+    `Check-out: ${formatClockTime(checkOutTime)}`,
+    `Amount paid: ${formatKES(amountKES)}`,
+    `Directions: ${mapsDirectionsHref(property)}`,
+  ].join("\n");
+
+  let sent = false;
+  try {
+    await messaging.createEmail({
+      messageId: ID.unique(),
+      subject,
+      content: html,
+      users: guestId ? [guestId] : [],
+      html: true,
+      draft: false,
+    });
+    sent = true;
+    log("Booking confirmation email queued via Appwrite Messaging.");
+  } catch (e) {
+    log(`Messaging email note: ${e.message}`);
+  }
+
+  const resendKey = process.env.RESEND_API_KEY;
+  const from = process.env.BOOKING_EMAIL_FROM || "Homiva <bookings@homiva.co.ke>";
+  if (!sent && resendKey && guest.email) {
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: [guest.email],
+          subject,
+          html,
+          text,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `Resend ${response.status}`);
+      }
+      sent = true;
+      log("Booking confirmation email sent via Resend.");
+    } catch (e) {
+      error(`Resend email failed: ${e.message}`);
+    }
+  }
+
+  if (!sent) {
+    log(
+      "Booking email was not sent. Add an Appwrite Messaging email provider, or set RESEND_API_KEY on homiva-payments.",
+    );
   }
 }
 

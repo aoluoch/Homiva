@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Role } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES } from "@/lib/config";
+import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { Property } from "@/types/models";
 
@@ -35,11 +35,13 @@ export function useCreateInquiry() {
         },
         permissions: [
           Permission.read(Role.user(user.$id)),
+          Permission.read(Role.team(TEAMS.admins)),
         ],
       });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inquiries"] });
+      qc.invalidateQueries({ queryKey: ["admin", "inquiries"] });
     },
   });
 }

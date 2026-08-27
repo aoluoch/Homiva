@@ -48,7 +48,7 @@ const functionConfig = {
   name: FUNCTION_NAME,
   runtime: Runtime.Node22,
   execute: [Role.users()],
-  timeout: 30,
+  timeout: 45,
   enabled: true,
   logging: true,
   entrypoint: ENTRYPOINT,
@@ -58,6 +58,9 @@ const functionConfig = {
     ProjectKeyScopes.TablesRead,
     ProjectKeyScopes.RowsRead,
     ProjectKeyScopes.RowsWrite,
+    ProjectKeyScopes.TeamsRead,
+    ProjectKeyScopes.UsersRead,
+    ProjectKeyScopes.MessagesWrite,
   ],
 };
 
@@ -74,6 +77,34 @@ async function upsertFunction() {
   }
 }
 
+async function upsertVariable(key: string, value: string | undefined, secret = false) {
+  if (!value) return;
+  const variables = await functions.listVariables({
+    functionId: FUNCTION_ID,
+    queries: [Query.equal("key", key), Query.limit(1)],
+  });
+  const existing = variables.variables[0];
+  if (existing) {
+    await functions.updateVariable({
+      functionId: FUNCTION_ID,
+      variableId: existing.$id,
+      key,
+      value,
+      secret,
+    });
+    console.log(`Updated ${key} function variable.`);
+    return;
+  }
+  await functions.createVariable({
+    functionId: FUNCTION_ID,
+    variableId: key.toLowerCase().replace(/[^a-z0-9]/g, "_").slice(0, 36),
+    key,
+    value,
+    secret,
+  });
+  console.log(`Created ${key} function variable.`);
+}
+
 async function upsertPaystackSecret() {
   if (!PAYSTACK_SECRET) {
     console.warn(
@@ -84,33 +115,7 @@ async function upsertPaystackSecret() {
     );
     return;
   }
-
-  const variables = await functions.listVariables({
-    functionId: FUNCTION_ID,
-    queries: [Query.equal("key", "PAYSTACK_SECRET_KEY"), Query.limit(1)],
-  });
-  const existing = variables.variables[0];
-
-  if (existing) {
-    await functions.updateVariable({
-      functionId: FUNCTION_ID,
-      variableId: existing.$id,
-      key: "PAYSTACK_SECRET_KEY",
-      value: PAYSTACK_SECRET,
-      secret: true,
-    });
-    console.log("Updated PAYSTACK_SECRET_KEY function secret variable.");
-    return;
-  }
-
-  await functions.createVariable({
-    functionId: FUNCTION_ID,
-    variableId: "paystack_secret_key",
-    key: "PAYSTACK_SECRET_KEY",
-    value: PAYSTACK_SECRET,
-    secret: true,
-  });
-  console.log("Created PAYSTACK_SECRET_KEY function secret variable.");
+  await upsertVariable("PAYSTACK_SECRET_KEY", PAYSTACK_SECRET, true);
 }
 
 function packageFunction() {
@@ -131,6 +136,9 @@ function packageFunction() {
 async function deploy() {
   await upsertFunction();
   await upsertPaystackSecret();
+  await upsertVariable("APP_URL", process.env.APP_URL || process.env.HOMIVA_APP_URL);
+  await upsertVariable("RESEND_API_KEY", process.env.RESEND_API_KEY, true);
+  await upsertVariable("BOOKING_EMAIL_FROM", process.env.BOOKING_EMAIL_FROM);
 
   const { dir, archive } = packageFunction();
   try {

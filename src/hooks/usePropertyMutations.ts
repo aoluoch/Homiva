@@ -4,6 +4,10 @@ import { formatAppwriteError, tablesDB } from "@/lib/appwrite";
 import { deleteImageFromStorage, uploadImageToStorage } from "@/lib/storage";
 import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
+import {
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
+} from "@/lib/booking";
 import type { ListingType, Property } from "@/types/models";
 
 export interface PropertyFormValues {
@@ -22,6 +26,8 @@ export interface PropertyFormValues {
   amenities: string[];
   contactPhone?: string;
   contactEmail?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
 }
 
 async function uploadImages(files: File[]): Promise<string[]> {
@@ -65,6 +71,14 @@ function normalizeListingValues(values: PropertyFormValues) {
     amenities: values.amenities,
     contactPhone: values.contactPhone ?? "",
     contactEmail: values.contactEmail ?? "",
+    checkInTime:
+      values.listingType === "airbnb"
+        ? values.checkInTime || DEFAULT_CHECK_IN_TIME
+        : "",
+    checkOutTime:
+      values.listingType === "airbnb"
+        ? values.checkOutTime || DEFAULT_CHECK_OUT_TIME
+        : "",
   };
   if (values.sizeSqft !== undefined && values.sizeSqft !== null) {
     data.sizeSqft = Math.max(0, Math.floor(Number(values.sizeSqft) || 0));

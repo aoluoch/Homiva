@@ -36,7 +36,7 @@ const tableQueryKeys: Partial<Record<TableId, string[][]>> = {
   [TABLES.viewingPayments]: [["viewing-access"]],
   [TABLES.recentlyViewed]: [["recently-viewed"]],
   [TABLES.favorites]: [["favorites"], ["saved-properties"]],
-  [TABLES.inquiries]: [["inquiries"], ["admin", "stats"]],
+  [TABLES.inquiries]: [["inquiries"], ["admin", "inquiries"], ["admin", "stats"]],
   [TABLES.serviceRequests]: [
     ["my-service-requests"],
     ["open-service-requests"],
@@ -71,6 +71,8 @@ const tableQueryKeys: Partial<Record<TableId, string[][]>> = {
     ["property-bookings"],
     ["my-trips"],
     ["host-bookings"],
+    ["stay-access"],
+    ["admin", "bookings"],
     ["admin", "stats"],
   ],
   [TABLES.storefronts]: [

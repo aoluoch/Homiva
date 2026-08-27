@@ -16,6 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KENYA_COUNTIES } from "@/lib/config";
+import {
+  DEFAULT_CHECK_IN_TIME,
+  DEFAULT_CHECK_OUT_TIME,
+} from "@/lib/booking";
 import { filePreview, formatAppwriteError } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { PropertyLocationPicker } from "@/components/location/PropertyLocationPicker";
@@ -43,6 +47,8 @@ const emptyForm: PropertyFormValues = {
   amenities: [],
   contactPhone: "",
   contactEmail: "",
+  checkInTime: DEFAULT_CHECK_IN_TIME,
+  checkOutTime: DEFAULT_CHECK_OUT_TIME,
 };
 
 export default function ListingFormPage() {
@@ -80,6 +86,8 @@ export default function ListingFormPage() {
         amenities: existing.amenities ?? [],
         contactPhone: existing.contactPhone ?? "",
         contactEmail: existing.contactEmail ?? "",
+        checkInTime: existing.checkInTime || DEFAULT_CHECK_IN_TIME,
+        checkOutTime: existing.checkOutTime || DEFAULT_CHECK_OUT_TIME,
       });
       setAmenitiesText((existing.amenities ?? []).join(", "));
       setKeptImageIds(existing.imageIds ?? []);
@@ -313,7 +321,11 @@ export default function ListingFormPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="address">
-                Full address (shown only after viewing fee)
+                Full address (
+                {form.listingType === "airbnb"
+                  ? "shown to guests after they book"
+                  : "shown only after viewing fee"}
+                )
               </Label>
               <Input
                 id="address"
@@ -417,9 +429,44 @@ export default function ListingFormPage() {
           </CardContent>
         </Card>
 
+        {form.listingType === "airbnb" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Check-in &amp; check-out</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="checkInTime">Check-in time</Label>
+                <Input
+                  id="checkInTime"
+                  type="time"
+                  value={form.checkInTime || DEFAULT_CHECK_IN_TIME}
+                  onChange={(e) => set("checkInTime", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="checkOutTime">Check-out time</Label>
+                <Input
+                  id="checkOutTime"
+                  type="time"
+                  value={form.checkOutTime || DEFAULT_CHECK_OUT_TIME}
+                  onChange={(e) => set("checkOutTime", e.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                Guests receive these times in their booking confirmation email.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
-            <CardTitle>Contact (shown after viewing fee)</CardTitle>
+            <CardTitle>
+              {form.listingType === "airbnb"
+                ? "Host contact (shown to guests after they book)"
+                : "Contact (shown after viewing fee)"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

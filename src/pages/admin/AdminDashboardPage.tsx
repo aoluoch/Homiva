@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -67,7 +68,11 @@ import {
   useAdminStats,
   useAuditLogs,
   useAdminAction,
+  useAdminBookings,
+  useAdminBookingProperties,
+  useAdminInquiries,
   useAdminOrders,
+  useUpdateInquiryStatus,
   useAdminOrderProducts,
   useAdminPartnerCompanies,
   useAdminUpdateOrderStatus,
@@ -94,6 +99,12 @@ import {
 } from "@/hooks/useStore";
 import { filePreview, fileView } from "@/lib/appwrite";
 import {
+  PROPERTY_PLACEHOLDER,
+  propertyGallery,
+  propertyImagePreview,
+  propertyImageView,
+} from "@/components/property/propertyImage";
+import {
   appwriteConfig,
   MARKETPLACE_CATEGORIES,
   PARTNER_CATEGORIES,
@@ -101,12 +112,22 @@ import {
   TEAMS,
 } from "@/lib/config";
 import { formatKES, initials, timeAgo } from "@/lib/utils";
+import {
+  formatClockTime,
+  formatStayDate,
+  mapsDirectionsHref,
+  resolveCheckInTime,
+  resolveCheckOutTime,
+} from "@/lib/booking";
 import type {
   AuditLog,
   ApplicationStatus,
+  Booking,
+  Inquiry,
   Order,
   Product,
   PartnerCompany,
+  Property,
   PropertyStatus,
   RoleApplication,
   ServiceRequest,
@@ -156,6 +177,8 @@ function sortForReview(applications: RoleApplication[]) {
 }
 
 export default function AdminDashboardPage() {
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "overview";
   const { data: stats, isLoading: loadingStats } = useAdminStats();
   const {
     items: applications,
@@ -173,6 +196,22 @@ export default function AdminDashboardPage() {
     useAdminServiceRequests();
   const { data: orders, isLoading: loadingOrders } = useAdminOrders();
   const {
+    items: bookings,
+    isLoading: loadingBookings,
+    hasMore: hasMoreBookings,
+    loadMore: loadMoreBookings,
+    isFetchingNextPage: loadingMoreBookings,
+    total: bookingsTotal,
+  } = useAdminBookings();
+  const {
+    items: inquiries,
+    isLoading: loadingInquiries,
+    hasMore: hasMoreInquiries,
+    loadMore: loadMoreInquiries,
+    isFetchingNextPage: loadingMoreInquiries,
+    total: inquiriesTotal,
+  } = useAdminInquiries();
+  const {
     items: auditLogs,
     isLoading: loadingAuditLogs,
     hasMore: hasMoreAudit,
@@ -185,6 +224,14 @@ export default function AdminDashboardPage() {
     const map: Record<string, string> = {};
     for (const profile of profiles ?? []) {
       map[profile.userId] = profile.name;
+    }
+    return map;
+  }, [profiles]);
+
+  const emailByUserId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const profile of profiles ?? []) {
+      if (profile.email) map[profile.userId] = profile.email;
     }
     return map;
   }, [profiles]);
@@ -205,6 +252,10 @@ export default function AdminDashboardPage() {
   const openServices =
     serviceRequests?.filter((r) => !["completed", "paid", "cancelled"].includes(String(r.status))) ?? [];
   const ordersToFulfil = orders?.filter((o) => o.status === "paid") ?? [];
+  const confirmedBookings = bookings.filter(
+    (booking) => booking.status === "confirmed" || booking.status === "completed",
+  );
+  const openInquiries = inquiries.filter((inquiry) => inquiry.status === "open");
 
   return (
     <div className="container max-w-7xl py-5 sm:py-8">
@@ -229,7 +280,7 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={initialTab}>
         <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
           <TabsList className="h-auto min-w-max justify-start gap-1 rounded-md">
             <TabsTrigger value="overview" className="h-9">
@@ -249,6 +300,15 @@ export default function AdminDashboardPage() {
               {pendingProps.length > 0 && (
                 <Badge variant="accent" className="ml-2">
                   {pendingProps.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="inquiries" className="h-9">
+              <Inbox className="mr-1 h-4 w-4" />
+              Inquiries
+              {openInquiries.length > 0 && (
+                <Badge variant="accent" className="ml-2">
+                  {openInquiries.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -274,6 +334,15 @@ export default function AdminDashboardPage() {
               {ordersToFulfil.length > 0 && (
                 <Badge variant="accent" className="ml-2">
                   {ordersToFulfil.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="bookings" className="h-9">
+              <CalendarCheck className="mr-1 h-4 w-4" />
+              Airbnb bookings
+              {confirmedBookings.length > 0 && (
+                <Badge variant="accent" className="ml-2">
+                  {confirmedBookings.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -364,6 +433,18 @@ export default function AdminDashboardPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="inquiries" className="mt-6">
+          <InquiriesPanel
+            inquiries={inquiries}
+            isLoading={loadingInquiries}
+            hasMore={hasMoreInquiries}
+            loadingMore={loadingMoreInquiries}
+            onLoadMore={loadMoreInquiries}
+            total={inquiriesTotal}
+            emailByUserId={emailByUserId}
+          />
+        </TabsContent>
+
         <TabsContent value="partners" className="mt-6">
           {loadingPartners ? (
             <LoadingRows />
@@ -412,6 +493,18 @@ export default function AdminDashboardPage() {
 
         <TabsContent value="orders" className="mt-6">
           <OrdersPanel orders={orders} isLoading={loadingOrders} />
+        </TabsContent>
+
+        <TabsContent value="bookings" className="mt-6">
+          <BookingsPanel
+            bookings={bookings}
+            isLoading={loadingBookings}
+            hasMore={hasMoreBookings}
+            loadingMore={loadingMoreBookings}
+            onLoadMore={loadMoreBookings}
+            total={bookingsTotal}
+            emailByUserId={emailByUserId}
+          />
         </TabsContent>
 
         <TabsContent value="marketplace-settings" className="mt-6">
@@ -1425,6 +1518,663 @@ function AdminMarketplaceSettings() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Property inquiries (Contact Homiva)
+// ---------------------------------------------------------------------------
+
+const inquiryStatusVariant: Record<
+  Inquiry["status"],
+  "warning" | "success" | "secondary"
+> = {
+  open: "warning",
+  responded: "success",
+  closed: "secondary",
+};
+
+function InquiriesPanel({
+  inquiries,
+  isLoading,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  total,
+  emailByUserId,
+}: {
+  inquiries: Inquiry[];
+  isLoading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  total: number;
+  emailByUserId: Record<string, string>;
+}) {
+  const [filter, setFilter] = useState<"all" | Inquiry["status"]>("all");
+
+  if (isLoading) return <LoadingRows />;
+  if (inquiries.length === 0) {
+    return (
+      <EmptyState
+        icon={Inbox}
+        title="No inquiries yet"
+        description="Messages sent from 'Contact Homiva' on a listing will appear here."
+      />
+    );
+  }
+
+  const countFor = (status: Inquiry["status"]) =>
+    inquiries.filter((inquiry) => inquiry.status === status).length;
+  const filters = [
+    { key: "all" as const, label: "All", count: total || inquiries.length },
+    { key: "open" as const, label: "Open", count: countFor("open") },
+    { key: "responded" as const, label: "Responded", count: countFor("responded") },
+    { key: "closed" as const, label: "Closed", count: countFor("closed") },
+  ];
+  const filtered =
+    filter === "all"
+      ? inquiries
+      : inquiries.filter((inquiry) => inquiry.status === filter);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Property inquiries sent to Homiva. Follow up with the buyer or renter,
+        then mark the inquiry as responded or closed.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {filters.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setFilter(item.key)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === item.key
+                ? "border-primary bg-primary/10 text-primary"
+                : "hover:bg-secondary",
+            )}
+          >
+            {item.label}
+            <span className="ml-1 text-muted-foreground">({item.count})</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title="Nothing here"
+          description="No inquiries match this filter."
+        />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((inquiry) => (
+            <InquiryCard
+              key={inquiry.$id}
+              inquiry={inquiry}
+              email={emailByUserId[inquiry.userId] || ""}
+            />
+          ))}
+        </div>
+      )}
+      <LoadMoreButton
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+        label="Load more inquiries"
+      />
+    </div>
+  );
+}
+
+function InquiryCard({
+  inquiry,
+  email,
+}: {
+  inquiry: Inquiry;
+  email: string;
+}) {
+  const update = useUpdateInquiryStatus();
+  const [status, setStatus] = useState<Inquiry["status"]>(inquiry.status || "open");
+  const phone = inquiry.phone?.trim();
+
+  useEffect(() => {
+    setStatus(inquiry.status || "open");
+  }, [inquiry.status]);
+
+  const save = () => {
+    update.mutate(
+      { id: inquiry.$id, status },
+      {
+        onSuccess: () => toast.success(`Inquiry marked ${status}.`),
+        onError: (err) => toast.error((err as Error).message),
+      },
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent className="grid gap-4 p-4 lg:grid-cols-[1fr_220px]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 break-words font-medium">
+              {inquiry.propertyTitle || "Property inquiry"}
+            </p>
+            <Badge variant={inquiryStatusVariant[inquiry.status] ?? "secondary"}>
+              {inquiry.status}
+            </Badge>
+          </div>
+          <p className="mt-2 whitespace-pre-wrap break-words text-sm">
+            {inquiry.message}
+          </p>
+          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+            <p className="flex items-center gap-1">
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span className="break-words">
+                {inquiry.userName || "Homiva user"}
+              </span>
+            </p>
+            {phone ? (
+              <a
+                href={`tel:${phone}`}
+                className="flex w-fit items-center gap-1 font-medium text-primary hover:underline"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {phone}
+              </a>
+            ) : (
+              <p className="text-xs">No phone provided</p>
+            )}
+            {email && (
+              <a
+                href={`mailto:${email}`}
+                className="flex w-fit items-center gap-1 break-all hover:text-primary"
+              >
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                {email}
+              </a>
+            )}
+            <p className="flex items-center gap-1 text-xs">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              {timeAgo(inquiry.$createdAt)}
+            </p>
+          </div>
+        </div>
+        <div className="grid min-w-0 content-start gap-2">
+          <Select
+            value={status}
+            onValueChange={(value) => setStatus(value as Inquiry["status"])}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="open">open</SelectItem>
+              <SelectItem value="responded">responded</SelectItem>
+              <SelectItem value="closed">closed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={save} disabled={update.isPending}>
+            {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save status
+          </Button>
+          {inquiry.propertyId && (
+            <a
+              href={`/properties/${inquiry.propertyId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              Listing
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Airbnb bookings (security / host + house details)
+// ---------------------------------------------------------------------------
+
+const bookingStatusVariant: Record<
+  string,
+  "success" | "warning" | "destructive" | "secondary"
+> = {
+  confirmed: "success",
+  completed: "secondary",
+  pending: "warning",
+  cancelled: "destructive",
+};
+
+function BookingsPanel({
+  bookings,
+  isLoading,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  total,
+  emailByUserId,
+}: {
+  bookings: Booking[];
+  isLoading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  total: number;
+  emailByUserId: Record<string, string>;
+}) {
+  const [filter, setFilter] = useState<
+    "all" | "confirmed" | "completed" | "cancelled" | "pending"
+  >("all");
+  const propertyIds = useMemo(
+    () => bookings.map((booking) => booking.propertyId).filter(Boolean),
+    [bookings],
+  );
+  const { data: propertyMap } = useAdminBookingProperties(propertyIds);
+
+  if (isLoading) return <LoadingRows />;
+  if (bookings.length === 0) {
+    return (
+      <EmptyState
+        icon={CalendarCheck}
+        title="No Airbnb bookings yet"
+        description="Confirmed stays appear here with the house, guest and host details for security review."
+      />
+    );
+  }
+
+  const countFor = (status: string) =>
+    bookings.filter((booking) => booking.status === status).length;
+  const filters = [
+    { key: "all" as const, label: "All", count: total || bookings.length },
+    { key: "confirmed" as const, label: "Confirmed", count: countFor("confirmed") },
+    { key: "completed" as const, label: "Completed", count: countFor("completed") },
+    { key: "cancelled" as const, label: "Cancelled", count: countFor("cancelled") },
+  ];
+  const filtered =
+    filter === "all"
+      ? bookings
+      : bookings.filter((booking) => booking.status === filter);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Full house, guest and host records for every Airbnb booking. Use this
+        when verifying a stay or investigating a dispute.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {filters.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setFilter(item.key)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === item.key
+                ? "border-primary bg-primary/10 text-primary"
+                : "hover:bg-secondary",
+            )}
+          >
+            {item.label}
+            <span className="ml-1 text-muted-foreground">({item.count})</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={CalendarCheck}
+          title="Nothing here"
+          description="No bookings match this filter."
+        />
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((booking) => (
+            <AdminBookingCard
+              key={booking.$id}
+              booking={booking}
+              property={propertyMap?.[booking.propertyId]}
+              guestEmail={
+                booking.guestEmail || emailByUserId[booking.guestId] || ""
+              }
+            />
+          ))}
+        </div>
+      )}
+      <LoadMoreButton
+        hasMore={hasMore}
+        loading={loadingMore}
+        onLoadMore={onLoadMore}
+        label="Load more bookings"
+      />
+    </div>
+  );
+}
+
+function AdminBookingCard({
+  booking,
+  property,
+  guestEmail,
+}: {
+  booking: Booking;
+  property?: Property;
+  guestEmail: string;
+}) {
+  const [photosOpen, setPhotosOpen] = useState(false);
+  const images = propertyGallery(property);
+  const location = [property?.address, property?.town, property?.county]
+    .filter(Boolean)
+    .join(", ");
+  const checkInTime = resolveCheckInTime(
+    booking.checkInTime || property?.checkInTime,
+  );
+  const checkOutTime = resolveCheckOutTime(
+    booking.checkOutTime || property?.checkOutTime,
+  );
+
+  return (
+    <Card>
+      <CardContent className="grid gap-4 p-4">
+        <AdminBookingPhotos
+          title={booking.propertyTitle}
+          fileIds={images}
+          onOpen={() => setPhotosOpen(true)}
+        />
+        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="min-w-0 break-words font-medium">
+              {booking.propertyTitle}
+            </p>
+            <Badge variant={bookingStatusVariant[booking.status] ?? "secondary"}>
+              {booking.status}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {formatStayDate(booking.checkIn)} → {formatStayDate(booking.checkOut)}{" "}
+            · Check-in {formatClockTime(checkInTime)} · Check-out{" "}
+            {formatClockTime(checkOutTime)} · {booking.nights} night
+            {booking.nights === 1 ? "" : "s"} · {booking.guests} guest
+            {booking.guests === 1 ? "" : "s"}
+          </p>
+          <p className="text-sm font-medium text-primary">
+            Paid {formatKES(booking.amount)}
+            {booking.paymentRef ? (
+              <span className="ml-2 font-normal text-muted-foreground">
+                · {booking.paymentRef}
+              </span>
+            ) : null}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border bg-secondary/40 p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Guest
+              </p>
+              <p className="mt-1 font-medium">{booking.guestName}</p>
+              {guestEmail && (
+                <a
+                  href={`mailto:${guestEmail}`}
+                  className="mt-1 flex items-center gap-1 text-muted-foreground hover:text-primary"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {guestEmail}
+                </a>
+              )}
+            </div>
+            <div className="rounded-lg border bg-secondary/40 p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Host / owner
+              </p>
+              <p className="mt-1 font-medium">
+                {property?.ownerName || "Listing owner"}
+              </p>
+              {property?.ownerRole && (
+                <p className="capitalize text-muted-foreground">
+                    {property.ownerRole.replace(/_/g, " ")}
+                </p>
+              )}
+              {property?.contactPhone && (
+                <a
+                  href={`tel:${property.contactPhone}`}
+                  className="mt-1 flex items-center gap-1 text-muted-foreground hover:text-primary"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  {property.contactPhone}
+                </a>
+              )}
+              {property?.contactEmail && (
+                <a
+                  href={`mailto:${property.contactEmail}`}
+                  className="mt-1 flex items-center gap-1 text-muted-foreground hover:text-primary"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {property.contactEmail}
+                </a>
+              )}
+            </div>
+          </div>
+          {property && (
+            <div className="rounded-lg border p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                House details
+              </p>
+              <p className="mt-1 flex items-start gap-1">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                <span>{location || `${property.town}, ${property.county}`}</span>
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {property.bedrooms} bed · {property.bathrooms} bath
+                {property.sizeSqft ? ` · ${property.sizeSqft} sqft` : ""}
+              </p>
+              {property.amenities?.length ? (
+                <p className="mt-1 text-muted-foreground">
+                  {property.amenities.join(" · ")}
+                </p>
+              ) : null}
+              {property.description && (
+                <p className="mt-2 line-clamp-3 text-muted-foreground">
+                  {property.description}
+                </p>
+              )}
+              {images.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {images.map((fileId, index) => (
+                    <button
+                      key={fileId}
+                      type="button"
+                      onClick={() => setPhotosOpen(true)}
+                      className="overflow-hidden rounded-md border bg-muted empty:hidden"
+                      aria-label={`View photo ${index + 1} of ${booking.propertyTitle}`}
+                    >
+                      <PropertyThumb
+                        fileId={fileId}
+                        alt={`${booking.propertyTitle} photo ${index + 1}`}
+                        className="aspect-[4/3] w-full object-cover"
+                        width={400}
+                        height={300}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="grid gap-2 md:w-36">
+          {images.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={() => setPhotosOpen(true)}
+            >
+              <ImageIcon className="h-4 w-4" />
+              Photos ({images.length})
+            </Button>
+          )}
+          <Button asChild size="sm" variant="outline" className="w-full">
+            <a
+              href={`/properties/${booking.propertyId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Listing
+            </a>
+          </Button>
+          {(property?.latitude && property?.longitude) || property?.address ? (
+            <Button asChild size="sm" variant="outline" className="w-full">
+              <a
+                href={mapsDirectionsHref(property)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MapPin className="h-4 w-4" />
+                Directions
+              </a>
+            </Button>
+          ) : null}
+        </div>
+        </div>
+        <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
+          <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="break-words pr-6">
+                {booking.propertyTitle}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-3">
+              {images.map((fileId, index) => (
+                <a
+                  key={fileId}
+                  href={propertyImageView(fileId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block overflow-hidden rounded-lg border bg-muted"
+                >
+                  <PropertyThumb
+                    fileId={fileId}
+                    alt={`${booking.propertyTitle} photo ${index + 1}`}
+                    className="max-h-[70vh] w-full object-contain"
+                    width={1200}
+                    height={900}
+                    preferFull
+                  />
+                </a>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdminBookingPhotos({
+  title,
+  fileIds,
+  onOpen,
+}: {
+  title: string;
+  fileIds: string[];
+  onOpen: () => void;
+}) {
+  if (fileIds.length === 0) {
+    return (
+      <div className="grid h-40 place-items-center rounded-lg border bg-muted text-muted-foreground">
+        <Building2 className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "grid gap-2",
+        fileIds.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2",
+      )}
+    >
+      {fileIds.slice(0, 4).map((fileId, index) => (
+        <button
+          key={fileId}
+          type="button"
+          onClick={onOpen}
+          className="overflow-hidden rounded-lg border bg-muted empty:hidden"
+          aria-label={
+            index === 0
+              ? `View photos of ${title}`
+              : `View photo ${index + 1} of ${title}`
+          }
+        >
+          <PropertyThumb
+            fileId={fileId}
+            alt={`${title} photo ${index + 1}`}
+            className="aspect-[16/10] h-full max-h-72 w-full object-cover"
+            width={index === 0 ? 960 : 640}
+            height={index === 0 ? 600 : 400}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PropertyThumb({
+  fileId,
+  fallbackIds = [],
+  alt,
+  className,
+  width,
+  height,
+  preferFull = false,
+}: {
+  fileId: string;
+  fallbackIds?: string[];
+  alt: string;
+  className?: string;
+  width: number;
+  height: number;
+  preferFull?: boolean;
+}) {
+  const candidates = [fileId, ...fallbackIds.filter((id) => id !== fileId)];
+  const [index, setIndex] = useState(0);
+  const current = candidates[Math.min(index, candidates.length - 1)] ?? fileId;
+  const preview = propertyImagePreview(current, { width, height });
+  const full = propertyImageView(current);
+  const initialSrc = preferFull ? full : preview;
+  const [src, setSrc] = useState(initialSrc);
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    setHidden(false);
+    setSrc(preferFull ? full : preview);
+  }, [current, preferFull, full, preview]);
+
+  if (hidden) return null;
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className={className}
+      onError={() => {
+        if (src === PROPERTY_PLACEHOLDER) {
+          setHidden(true);
+          return;
+        }
+        if (src !== full) {
+          setSrc(full);
+          return;
+        }
+        if (index < candidates.length - 1) {
+          setIndex((value) => value + 1);
+          return;
+        }
+        setHidden(true);
+      }}
+    />
   );
 }
 

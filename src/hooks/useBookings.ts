@@ -6,6 +6,7 @@ import { usePayment } from "@/hooks/usePayment";
 import type { Booking, Property } from "@/types/models";
 
 const DB = appwriteConfig.databaseId;
+const ACTIVE_STAY = ["confirmed", "completed"] as const;
 
 /** Confirmed bookings for a property (used to block calendar dates). */
 export function usePropertyBookings(propertyId?: string) {
@@ -18,7 +19,7 @@ export function usePropertyBookings(propertyId?: string) {
         tableId: TABLES.bookings,
         queries: [
           Query.equal("propertyId", propertyId!),
-          Query.equal("status", ["confirmed", "completed"]),
+          Query.equal("status", [...ACTIVE_STAY]),
           Query.limit(100),
         ],
       });
@@ -65,6 +66,28 @@ export function useHostBookings() {
         ],
       });
       return res.rows as unknown as Booking[];
+    },
+  });
+}
+
+/** Confirmed/completed stay for the signed-in guest on this listing (unlocks host details). */
+export function useMyStayAccess(propertyId?: string) {
+  const { user } = useAuth();
+  return useQuery({
+    enabled: !!user && !!propertyId,
+    queryKey: ["stay-access", user?.$id, propertyId],
+    queryFn: async () => {
+      const res = await tablesDB.listRows({
+        databaseId: DB,
+        tableId: TABLES.bookings,
+        queries: [
+          Query.equal("propertyId", propertyId!),
+          Query.equal("guestId", user!.$id),
+          Query.equal("status", [...ACTIVE_STAY]),
+          Query.limit(1),
+        ],
+      });
+      return (res.rows[0] as unknown as Booking) ?? null;
     },
   });
 }

@@ -6,7 +6,9 @@ import { logAdminAudit } from "@/lib/audit";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type {
   AuditLog,
+  Booking,
   Dispute,
+  Inquiry,
   MortgageEnquiry,
   Order,
   PartnerCompany,
@@ -18,6 +20,22 @@ import type {
   Storefront,
   ViewingRequest,
 } from "@/types/models";
+
+function asProperty(row: unknown): Property {
+  const record = row as Record<string, unknown>;
+  const nested = record.data;
+  const fields =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? { ...record, ...(nested as Record<string, unknown>) }
+      : record;
+  return {
+    ...(fields as unknown as Property),
+    $id: String(record.$id ?? ""),
+    $createdAt: String(record.$createdAt ?? ""),
+    $updatedAt: String(record.$updatedAt ?? ""),
+    $permissions: (record.$permissions as string[]) ?? [],
+  };
+}
 
 const DB = appwriteConfig.databaseId;
 
@@ -102,6 +120,115 @@ export function usePendingProducts() {
         queries: [Query.orderDesc("$createdAt"), Query.limit(100)],
       });
       return res.rows as unknown as Product[];
+    },
+  });
+}
+
+/** Property inquiries sent to Homiva from listing pages. */
+export function useAdminInquiries() {
+  const enabled = useAdminEnabled();
+  const result = useAppwriteInfiniteRows<Inquiry>({
+    enabled,
+    queryKey: ["admin", "inquiries"],
+    tableId: TABLES.inquiries,
+    pageSize: PAGE_SIZE.admin,
+    buildQueries: () => [Query.orderDesc("$createdAt")],
+  });
+  return {
+    ...result,
+    items: result.items.map(asInquiry),
+  };
+}
+
+export function useUpdateInquiryStatus() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: Inquiry["status"];
+    }) => {
+      const updated = await tablesDB.updateRow({
+        databaseId: DB,
+        tableId: TABLES.inquiries,
+        rowId: id,
+        data: { status },
+      });
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: `inquiry_${status}`,
+        targetType: "inquiry",
+        targetId: id,
+        summary: `Inquiry marked ${status}.`,
+      });
+      return updated;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "inquiries"] });
+      qc.invalidateQueries({ queryKey: ["inquiries"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
+    },
+  });
+}
+
+function asInquiry(row: unknown): Inquiry {
+  const record = row as Record<string, unknown>;
+  const nested = record.data;
+  const fields =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? { ...record, ...(nested as Record<string, unknown>) }
+      : record;
+  return {
+    ...(fields as unknown as Inquiry),
+    $id: String(record.$id ?? ""),
+    $createdAt: String(record.$createdAt ?? ""),
+    $updatedAt: String(record.$updatedAt ?? ""),
+    $permissions: (record.$permissions as string[]) ?? [],
+  };
+}
+
+/** Every Airbnb booking (admins can read all rows for security review). */
+export function useAdminBookings() {
+  const enabled = useAdminEnabled();
+  return useAppwriteInfiniteRows<Booking>({
+    enabled,
+    queryKey: ["admin", "bookings"],
+    tableId: TABLES.bookings,
+    pageSize: PAGE_SIZE.admin,
+    buildQueries: () => [Query.orderDesc("$createdAt")],
+  });
+}
+
+/**
+ * Fetch the listings referenced by admin bookings so the security tab can show
+ * house details and host contact without extra per-card queries.
+ */
+export function useAdminBookingProperties(propertyIds: string[]) {
+  const uniqueIds = [...new Set(propertyIds.filter(Boolean))].sort();
+  const enabled = useAdminEnabled() && uniqueIds.length > 0;
+  return useQuery({
+    enabled,
+    queryKey: ["admin", "booking-properties", uniqueIds],
+    queryFn: async () => {
+      const map: Record<string, Property> = {};
+      await Promise.all(
+        uniqueIds.map(async (rowId) => {
+          try {
+            const row = await tablesDB.getRow({
+              databaseId: DB,
+              tableId: TABLES.properties,
+              rowId,
+            });
+            map[rowId] = asProperty(row);
+          } catch {
+            // Listing may have been deleted; the booking card still shows stay data.
+          }
+        }),
+      );
+      return map;
     },
   });
 }
