@@ -210,7 +210,15 @@ export default function LoginPage() {
               <Link to="/register" className="font-medium text-primary">
                 Create your profile
               </Link>{" "}
-              and keep the same OTP sign-in.
+              and keep the same OTP sign-in. Using Homiva means you accept the{" "}
+              <Link to="/terms" className="font-medium text-primary">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="font-medium text-primary">
+                Privacy Policy
+              </Link>
+              .
             </p>
           </div>
         </div>

@@ -59,6 +59,10 @@ import { useCreateInquiry } from "@/hooks/useInquiries";
 import { PropertyMapPreview } from "@/components/location/PropertyLocationPicker";
 import { propertyCover, PROPERTY_PLACEHOLDER } from "@/components/property/propertyImage";
 import { BookingWidget } from "@/components/booking/BookingWidget";
+import {
+  MortgageCalculator,
+  ViewingRequestCard,
+} from "@/components/property/BuyingTools";
 import { ReviewSection } from "@/components/reviews/ReviewSection";
 
 export default function PropertyDetailPage() {
@@ -258,6 +262,12 @@ export default function PropertyDetailPage() {
             </section>
           )}
 
+          {property.listingType === "sale" && (
+            <section className="mt-8">
+              <MortgageCalculator property={property} />
+            </section>
+          )}
+
           <section className="mt-10">
             <ReviewSection targetType="property" targetId={property.$id} />
           </section>
@@ -380,6 +390,7 @@ export default function PropertyDetailPage() {
               )}
             </CardContent>
           </Card>
+          {!isAirbnb && <ViewingRequestCard property={property} />}
         </aside>
       </div>
     </div>

@@ -161,6 +161,18 @@ export default function RegisterPage() {
               </>
             )}
 
+            <p className="text-xs leading-5 text-muted-foreground">
+              By creating a profile you agree to Homiva&apos;s{" "}
+              <Link to="/terms" className="font-medium text-primary">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy" className="font-medium text-primary">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

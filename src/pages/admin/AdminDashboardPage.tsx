@@ -612,6 +612,7 @@ function AdminOverview({ stats }: { stats: AdminStats }) {
   const cards: Array<{
     label: string;
     value: string;
+    hint?: string;
     icon: typeof Users;
     accent: string;
   }> = [
@@ -621,8 +622,8 @@ function AdminOverview({ stats }: { stats: AdminStats }) {
     { label: "Published partners", value: stats.partnerCompaniesPublished.toLocaleString(), icon: Store, accent: "bg-violet-500/10 text-violet-600" },
     { label: "Bookings GMV", value: formatKES(stats.bookingsGmv), icon: CalendarCheck, accent: "bg-indigo-500/10 text-indigo-600" },
     { label: "Orders revenue", value: formatKES(stats.ordersRevenue), icon: ShoppingCart, accent: "bg-primary/10 text-primary" },
-    { label: "Completed jobs", value: stats.completedJobs.toLocaleString(), icon: Wrench, accent: "bg-teal-500/10 text-teal-600" },
-    { label: "Subscription MRR", value: formatKES(stats.subscriptionMrr), icon: Wallet, accent: "bg-fuchsia-500/10 text-fuchsia-600" },
+    { label: "Open jobs", value: stats.openJobs.toLocaleString(), hint: `${stats.completedJobs.toLocaleString()} completed`, icon: Wrench, accent: "bg-teal-500/10 text-teal-600" },
+    { label: "Subscription MRR", value: formatKES(stats.subscriptionMrr), hint: `${stats.activeSubscriptions.toLocaleString()} active plan${stats.activeSubscriptions === 1 ? "" : "s"}`, icon: Wallet, accent: "bg-fuchsia-500/10 text-fuchsia-600" },
     { label: "Open disputes", value: stats.openDisputes.toLocaleString(), icon: AlertTriangle, accent: "bg-rose-500/10 text-rose-600" },
   ];
 
@@ -639,6 +640,9 @@ function AdminOverview({ stats }: { stats: AdminStats }) {
               <p className="mt-0.5 break-words text-xl font-bold sm:text-2xl">
                 {card.value}
               </p>
+              {card.hint ? (
+                <p className="text-xs text-muted-foreground">{card.hint}</p>
+              ) : null}
             </div>
           </CardContent>
         </Card>

@@ -31,9 +31,41 @@ export function formatClockTime(value?: string | null) {
   return `${hours}:${minutes} ${suffix}`;
 }
 
+/** Calendar day as `YYYY-MM-DD` in the viewer's local timezone. */
+export function toDateKey(value: Date | string) {
+  if (typeof value === "string") {
+    const datePart = value.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return datePart;
+    value = parsed;
+  }
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function dateFromKey(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+export function addDaysKey(key: string, days: number) {
+  const date = dateFromKey(key);
+  date.setDate(date.getDate() + days);
+  return toDateKey(date);
+}
+
+export function nightsBetweenKeys(start: string, end: string) {
+  return Math.round(
+    (dateFromKey(end).getTime() - dateFromKey(start).getTime()) / 86_400_000,
+  );
+}
+
 export function formatStayDate(iso?: string | null) {
   if (!iso) return "—";
-  const date = new Date(iso);
+  const date = dateFromKey(toDateKey(iso));
   if (Number.isNaN(date.getTime())) return String(iso).slice(0, 10);
   return date.toLocaleDateString("en-KE", {
     weekday: "short",

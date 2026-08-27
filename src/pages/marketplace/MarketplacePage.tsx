@@ -57,7 +57,7 @@ export default function MarketplacePage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Home Marketplace</h1>
         <p className="text-muted-foreground">
-          Furniture, appliances, décor and building materials from verified sellers.
+          Furniture, appliances, décor and building materials sold and delivered by Homiva.
         </p>
       </div>
 

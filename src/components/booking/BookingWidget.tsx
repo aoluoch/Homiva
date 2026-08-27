@@ -8,16 +8,12 @@ import { Label } from "@/components/ui/label";
 import { cn, formatKES } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useBookStay, usePropertyBookings } from "@/hooks/useBookings";
+import {
+  addDaysKey,
+  nightsBetweenKeys,
+  toDateKey,
+} from "@/lib/booking";
 import type { Property } from "@/types/models";
-
-function toKey(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-function nightsBetween(a: string, b: string) {
-  return Math.round(
-    (new Date(b).getTime() - new Date(a).getTime()) / 86_400_000,
-  );
-}
 
 export function BookingWidget({ property }: { property: Property }) {
   const navigate = useNavigate();
@@ -33,20 +29,23 @@ export function BookingWidget({ property }: { property: Property }) {
   const [checkOut, setCheckOut] = useState<string | null>(null);
   const [guests, setGuests] = useState(1);
 
-  // Set of blocked date keys from confirmed bookings.
+  // Occupied nights from confirmed, completed, or pending stays (check-in
+  // inclusive, check-out exclusive) using local calendar days.
   const blocked = useMemo(() => {
     const set = new Set<string>();
-    (bookings ?? []).forEach((b) => {
-      const start = new Date(b.checkIn);
-      const end = new Date(b.checkOut);
-      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-        set.add(toKey(d));
+    (bookings ?? []).forEach((booking) => {
+      if (booking.status === "cancelled") return;
+      let key = toDateKey(booking.checkIn);
+      const end = toDateKey(booking.checkOut);
+      while (key && end && key < end) {
+        set.add(key);
+        key = addDaysKey(key, 1);
       }
     });
     return set;
   }, [bookings]);
 
-  const today = toKey(new Date());
+  const today = toDateKey(new Date());
 
   const days = useMemo(() => {
     const year = view.getFullYear();
@@ -60,7 +59,7 @@ export function BookingWidget({ property }: { property: Property }) {
     return cells;
   }, [view]);
 
-  const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
+  const nights = checkIn && checkOut ? nightsBetweenKeys(checkIn, checkOut) : 0;
   const total = nights * property.price;
 
   const selectDate = (key: string) => {
@@ -74,12 +73,8 @@ export function BookingWidget({ property }: { property: Property }) {
       return;
     }
     // Ensure no blocked date lies in the chosen range.
-    for (
-      let d = new Date(checkIn);
-      d < new Date(key);
-      d.setDate(d.getDate() + 1)
-    ) {
-      if (blocked.has(toKey(d))) {
+    for (let night = checkIn; night < key; night = addDaysKey(night, 1)) {
+      if (blocked.has(night)) {
         toast.error("Those dates include an unavailable night.");
         return;
       }
@@ -153,7 +148,7 @@ export function BookingWidget({ property }: { property: Property }) {
           ))}
           {days.map((date, i) => {
             if (!date) return <div key={i} />;
-            const key = toKey(date);
+            const key = toDateKey(date);
             const isPast = key < today;
             const isBlocked = blocked.has(key);
             const disabled = isPast || isBlocked;

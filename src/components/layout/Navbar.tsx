@@ -1,4 +1,4 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Building2,
   Heart,
@@ -38,19 +38,33 @@ import { filePreview } from "@/lib/appwrite";
 import { useUnreadCount } from "@/hooks/useNotifications";
 import { useCart } from "@/context/CartContext";
 
-const navLinks = [
-  { to: "/properties?type=sale", label: "Buy" },
-  { to: "/properties?type=rent", label: "Rent" },
-  { to: "/properties?type=airbnb", label: "Airbnb" },
+const propertyNavLinks = [
+  { to: "/properties?type=sale", label: "Buy", type: "sale" },
+  { to: "/properties?type=rent", label: "Rent", type: "rent" },
+  { to: "/properties?type=airbnb", label: "Airbnb", type: "airbnb" },
+] as const;
+
+const otherNavLinks = [
   { to: "/services", label: "Services" },
   { to: "/marketplace", label: "Marketplace" },
   { to: "/partners", label: "Partners" },
-];
+] as const;
+
+function navItemClass(active: boolean) {
+  return cn(
+    "rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+    active && "bg-secondary text-secondary-foreground",
+  );
+}
 
 export function Navbar() {
-  const { user, profile, roles, isAdmin, logout } = useAuth();
+  const { user, profile, roles, isAdmin, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const listingType = new URLSearchParams(location.search).get("type");
+  const onPropertyIndex = location.pathname === "/properties";
+  const allPropertiesActive = onPropertyIndex && !listingType;
 
   const canManageListings = APPLICABLE_ROLES.some(
     (r) =>
@@ -87,26 +101,27 @@ export function Navbar() {
             Homiva
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
-            {navLinks.map((link) => (
+            {propertyNavLinks.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={navItemClass(onPropertyIndex && listingType === link.type)}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {otherNavLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
-                className={({ isActive }) =>
-                  cn(
-                    "rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                    isActive && "bg-secondary text-secondary-foreground",
-                  )
-                }
+                className={({ isActive }) => navItemClass(isActive)}
               >
                 {link.label}
               </NavLink>
             ))}
-            <NavLink
-              to="/properties"
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
+            <Link to="/properties" className={navItemClass(allPropertiesActive)}>
               All Properties
-            </NavLink>
+            </Link>
           </nav>
         </div>
 
@@ -126,7 +141,12 @@ export function Navbar() {
               )}
             </Link>
           </Button>
-          {user ? (
+          {loading ? (
+            <div
+              className="hidden h-10 w-10 animate-pulse rounded-full bg-secondary sm:block"
+              aria-hidden
+            />
+          ) : user ? (
             <>
               <Button
                 asChild
@@ -249,7 +269,17 @@ export function Navbar() {
       {mobileOpen && (
         <div className="border-t bg-background/95 md:hidden">
           <nav className="container flex flex-col gap-1 py-3">
-            {navLinks.map((link) => (
+            {propertyNavLinks.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                onClick={() => setMobileOpen(false)}
+                className={navItemClass(onPropertyIndex && listingType === link.type)}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {otherNavLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
@@ -270,12 +300,12 @@ export function Navbar() {
             <Link
               to="/properties"
               onClick={() => setMobileOpen(false)}
-              className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+              className={navItemClass(allPropertiesActive)}
             >
               <Building2 className="mr-2 inline h-4 w-4" />
               All Properties
             </Link>
-            {!user && (
+            {!loading && !user && (
               <div className="mt-2 flex flex-col gap-2">
                 <Button asChild variant="outline">
                   <Link to="/login" onClick={() => setMobileOpen(false)}>

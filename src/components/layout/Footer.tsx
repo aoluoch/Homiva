@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 export function Footer() {
   return (
     <footer className="mt-16 border-t bg-secondary/40">
-      <div className="container grid gap-8 py-12 md:grid-cols-4">
+      <div className="container grid gap-8 py-12 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-3">
           <Link
             to="/"
@@ -49,11 +49,26 @@ export function Footer() {
             { to: "/dashboard", label: "List a property" },
           ]}
         />
+        <FooterCol
+          title="Legal"
+          links={[
+            { to: "/privacy", label: "Privacy policy" },
+            { to: "/terms", label: "Terms & conditions" },
+          ]}
+        />
       </div>
       <div className="border-t py-6">
-        <div className="container flex flex-col items-center justify-between gap-2 text-sm text-muted-foreground sm:flex-row">
+        <div className="container flex flex-col items-center justify-between gap-3 text-sm text-muted-foreground sm:flex-row">
           <p>&copy; {new Date().getFullYear()} Homiva. All rights reserved.</p>
-          <p>Built for Kenyan homes.</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <Link to="/privacy" className="transition-colors hover:text-foreground">
+              Privacy
+            </Link>
+            <Link to="/terms" className="transition-colors hover:text-foreground">
+              Terms
+            </Link>
+            <span>Built for Kenyan homes.</span>
+          </div>
         </div>
       </div>
     </footer>

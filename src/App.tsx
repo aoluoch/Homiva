@@ -15,6 +15,8 @@ import OwnerDashboardPage from "@/pages/dashboard/OwnerDashboardPage";
 import ListingFormPage from "@/pages/dashboard/ListingFormPage";
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import NotFoundPage from "@/pages/NotFoundPage";
+import PrivacyPolicyPage from "@/pages/legal/PrivacyPolicyPage";
+import TermsPage from "@/pages/legal/TermsPage";
 import ServicesPage from "@/pages/services/ServicesPage";
 import ServiceRequestPage from "@/pages/services/ServiceRequestPage";
 import MyServiceRequestsPage from "@/pages/services/MyServiceRequestsPage";
@@ -46,6 +48,8 @@ export default function App() {
         <Route path="partners/:id" element={<PartnerDetailPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="privacy" element={<PrivacyPolicyPage />} />
+        <Route path="terms" element={<TermsPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="profile" element={<ProfilePage />} />

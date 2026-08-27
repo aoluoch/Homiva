@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { functions, Query, tablesDB } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
-import { appwriteConfig, TABLES } from "@/lib/config";
+import { appwriteConfig, SUBSCRIPTION_PLANS, TABLES } from "@/lib/config";
 import { logAdminAudit } from "@/lib/audit";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type {
@@ -614,6 +614,7 @@ export interface AdminStats {
   orders: number;
   ordersRevenue: number;
   completedJobs: number;
+  openJobs: number;
   activeSubscriptions: number;
   subscriptionMrr: number;
   openDisputes: number;
@@ -626,6 +627,21 @@ async function countOf(tableId: string, queries: unknown[] = []): Promise<number
     queries: [...(queries as string[]), Query.limit(1)],
   });
   return res.total;
+}
+
+function planMonthlyPrice(plan?: string) {
+  return (
+    SUBSCRIPTION_PLANS.find((item) => item.key === plan)?.price ??
+    SUBSCRIPTION_PLANS[0]?.price ??
+    0
+  );
+}
+
+function mrrFromRows(rows: unknown[]) {
+  return rows.reduce<number>((sum, row) => {
+    const plan = (row as { plan?: string }).plan;
+    return sum + planMonthlyPrice(plan);
+  }, 0);
 }
 
 /** Sum an amount field over a filtered, capped window (avoids full-table scans). */
@@ -656,7 +672,7 @@ export function useAdminStats() {
   const enabled = useAdminEnabled();
   return useQuery({
     enabled,
-    queryKey: ["admin", "stats"],
+    queryKey: ["admin", "stats", "v2"],
     staleTime: 60_000,
     queryFn: async (): Promise<AdminStats> => {
       const [
@@ -673,7 +689,9 @@ export function useAdminStats() {
         bookingsMeta,
         ordersMeta,
         completedJobs,
-        subscriptionsMeta,
+        openJobs,
+        partnerMrrRows,
+        storefrontMrrRows,
       ] = await Promise.all([
         countOf(TABLES.profiles),
         countOf(TABLES.properties),
@@ -697,7 +715,31 @@ export function useAdminStats() {
         countOf(TABLES.serviceRequests, [
           Query.equal("status", ["completed", "paid"]),
         ]),
-        sumAmount(TABLES.subscriptions, [Query.equal("status", "active")]),
+        countOf(TABLES.serviceRequests, [
+          Query.equal("status", [
+            "requested",
+            "reviewed",
+            "quoted",
+            "scheduled",
+            "in_progress",
+          ]),
+        ]),
+        tablesDB.listRows({
+          databaseId: DB,
+          tableId: TABLES.partnerCompanies,
+          queries: [
+            Query.equal("subscriptionStatus", "active"),
+            Query.limit(250),
+          ],
+        }),
+        tablesDB.listRows({
+          databaseId: DB,
+          tableId: TABLES.storefronts,
+          queries: [
+            Query.equal("subscriptionStatus", "active"),
+            Query.limit(250),
+          ],
+        }),
       ]);
 
       return {
@@ -715,8 +757,11 @@ export function useAdminStats() {
         orders: ordersMeta.totalRows,
         ordersRevenue: ordersMeta.sum,
         completedJobs,
-        activeSubscriptions: subscriptionsMeta.totalRows,
-        subscriptionMrr: subscriptionsMeta.sum,
+        openJobs,
+        activeSubscriptions: partnerMrrRows.total + storefrontMrrRows.total,
+        subscriptionMrr:
+          mrrFromRows(partnerMrrRows.rows as unknown[]) +
+          mrrFromRows(storefrontMrrRows.rows as unknown[]),
         openDisputes,
       };
     },
