@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { functions, Query, tablesDB } from "@/lib/appwrite";
+import { Query, tablesDB } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { appwriteConfig, SUBSCRIPTION_PLANS, TABLES } from "@/lib/config";
 import { logAdminAudit } from "@/lib/audit";
+import { executeHomivaAdmin } from "@/lib/homivaAdmin";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type {
   AuditLog,
@@ -398,33 +399,7 @@ interface AdminActionPayload {
 }
 
 async function callAdmin(payload: AdminActionPayload) {
-  let execution;
-  try {
-    execution = await functions.createExecution({
-      functionId: appwriteConfig.functions.admin,
-      body: JSON.stringify(payload),
-      async: false,
-    });
-  } catch (err) {
-    const e = err as { code?: number; message?: string };
-    if (e.code === 404 || e.message?.includes("Function")) {
-      throw new Error(
-        `Admin function "${appwriteConfig.functions.admin}" is not deployed or the VITE_APPWRITE_FUNCTION_ADMIN value is wrong. Run npm run deploy:admin, then retry.`,
-      );
-    }
-    throw err;
-  }
-
-  let parsed: { ok?: boolean; error?: string } = {};
-  try {
-    parsed = JSON.parse(execution.responseBody || "{}");
-  } catch {
-    throw new Error("Unexpected response from admin function.");
-  }
-  if (!parsed.ok) {
-    throw new Error(parsed.error || "Admin action failed.");
-  }
-  return parsed;
+  return executeHomivaAdmin(payload);
 }
 
 export function useAdminAction() {

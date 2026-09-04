@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   BadgeCheck,
   Clock,
-  ExternalLink,
   FileText,
   MapPin,
   Phone,
@@ -42,8 +41,7 @@ import {
   TEAMS,
 } from "@/lib/config";
 import { initials } from "@/lib/utils";
-import { fileView } from "@/lib/appwrite";
-import { appwriteConfig } from "@/lib/config";
+import { VerificationDocumentLink } from "@/components/VerificationDocumentLink";
 import {
   useApplyForRole,
   useMyApplications,
@@ -474,23 +472,14 @@ export default function ProfilePage() {
                       {documentIds.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {documentIds.map((fileId, index) => (
-                            <a
+                            <VerificationDocumentLink
                               key={fileId}
-                              href={fileView(
-                                appwriteConfig.buckets.verificationDocuments,
-                                fileId,
-                              )}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary hover:bg-secondary"
-                            >
-                              <FileText className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">
-                                {a.documentLabels?.[index] ??
-                                  `Document ${index + 1}`}
-                              </span>
-                              <ExternalLink className="h-3 w-3 shrink-0" />
-                            </a>
+                              fileId={fileId}
+                              label={
+                                a.documentLabels?.[index] ??
+                                `Document ${index + 1}`
+                              }
+                            />
                           ))}
                         </div>
                       )}

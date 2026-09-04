@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ID, Permission, Query, Role } from "appwrite";
+import { Query } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
+import { executeHomivaAdmin } from "@/lib/homivaAdmin";
 import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { Message } from "@/types/models";
@@ -116,30 +117,46 @@ export function useSendMessage() {
     }) => {
       if (!user) throw new Error("You must be logged in.");
       const threadId = makeThreadId(user.$id, receiverId, contextId);
-      return tablesDB.createRow({
-        databaseId: DB,
-        tableId: TABLES.messages,
-        rowId: ID.unique(),
-        data: {
-          threadId,
-          senderId: user.$id,
-          senderName: profile?.name ?? user.name,
-          receiverId,
-          body,
-          contextType: contextType ?? "",
-          contextId: contextId ?? "",
-          read: false,
-        },
-        permissions: [
-          Permission.read(Role.user(user.$id)),
-          Permission.update(Role.user(user.$id)),
-          Permission.delete(Role.user(user.$id)),
-        ],
+      await executeHomivaAdmin({
+        action: "sendMessage",
+        receiverId,
+        body,
+        contextType: contextType ?? "",
+        contextId: contextId ?? "",
+        senderName: profile?.name ?? user.name,
       });
+      return { threadId };
     },
     onSuccess: (_d, vars) => {
       const threadId = makeThreadId(user!.$id, vars.receiverId, vars.contextId);
       qc.invalidateQueries({ queryKey: ["thread", threadId] });
+      qc.invalidateQueries({ queryKey: ["threads"] });
+    },
+  });
+}
+
+/** Mark received unread messages in an open thread as read. */
+export function useMarkThreadRead() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (messages: Message[]) => {
+      if (!user) return;
+      const unread = messages.filter(
+        (m) => m.receiverId === user.$id && !m.read,
+      );
+      await Promise.all(
+        unread.map((m) =>
+          tablesDB.updateRow({
+            databaseId: DB,
+            tableId: TABLES.messages,
+            rowId: m.$id,
+            data: { read: true },
+          }),
+        ),
+      );
+    },
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["threads"] });
     },
   });

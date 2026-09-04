@@ -58,6 +58,9 @@ const functionConfig = {
     ProjectKeyScopes.RowsWrite,
     ProjectKeyScopes.TeamsRead,
     ProjectKeyScopes.TeamsWrite,
+    ProjectKeyScopes.UsersRead,
+    ProjectKeyScopes.FilesRead,
+    ProjectKeyScopes.FilesWrite,
   ],
 };
 

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
+import { executeHomivaAdmin } from "@/lib/homivaAdmin";
+import { appwriteConfig, TABLES } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import type { MortgageEnquiry, Property, ViewingRequest } from "@/types/models";
 
@@ -48,11 +49,9 @@ export function useCreateMortgageEnquiry() {
           message: input.message ?? "",
           status: "new",
         },
-        permissions: [
-          Permission.read(Role.user(user.$id)),
-          Permission.read(Role.team(TEAMS.admins)),
-          Permission.update(Role.team(TEAMS.admins)),
-        ],
+        // Clients may only grant roles they hold. Admins already have
+        // table-level read/update on mortgage_enquiries.
+        permissions: [Permission.read(Role.user(user.$id))],
       }) as unknown as MortgageEnquiry;
     },
     onSuccess: () => {
@@ -99,34 +98,16 @@ export function useCreateViewingRequest() {
     mutationFn: async (input: ViewingRequestInput) => {
       if (!user) throw new Error("You must be logged in.");
       if (!input.preferredDate) throw new Error("Please choose a preferred date.");
-      return tablesDB.createRow({
-        databaseId: DB,
-        tableId: TABLES.viewingRequests,
-        rowId: ID.unique(),
-        data: {
-          userId: user.$id,
-          userName: profile?.name ?? user.name,
-          phone: input.phone ?? "",
-          propertyId: input.property.$id,
-          propertyTitle: input.property.title,
-          ownerId: input.property.ownerId,
-          preferredDate: input.preferredDate,
-          alternateDate: input.alternateDate ?? null,
-          message: input.message ?? "",
-          status: "requested",
-        },
-        permissions: [
-          Permission.read(Role.user(user.$id)),
-          Permission.read(Role.team(TEAMS.admins)),
-          Permission.update(Role.team(TEAMS.admins)),
-          ...(input.property.ownerId
-            ? [
-                Permission.read(Role.user(input.property.ownerId)),
-                Permission.update(Role.user(input.property.ownerId)),
-              ]
-            : []),
-        ],
-      }) as unknown as ViewingRequest;
+      const result = await executeHomivaAdmin<{ row?: ViewingRequest }>({
+        action: "createViewingRequest",
+        propertyId: input.property.$id,
+        preferredDate: input.preferredDate,
+        alternateDate: input.alternateDate ?? "",
+        phone: input.phone ?? "",
+        message: input.message ?? "",
+        userName: profile?.name ?? user.name,
+      });
+      return result.row as ViewingRequest;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-viewing-requests"] });

@@ -15,7 +15,6 @@ import {
   Copy,
   CreditCard,
   ExternalLink,
-  FileText,
   ImageIcon,
   Inbox,
   Loader2,
@@ -104,6 +103,7 @@ import {
   type ProductInput,
 } from "@/hooks/useStore";
 import { filePreview, fileView } from "@/lib/appwrite";
+import { VerificationDocumentLink } from "@/components/VerificationDocumentLink";
 import {
   PROPERTY_PLACEHOLDER,
   propertyGallery,
@@ -915,22 +915,14 @@ function ApplicationRow({
           {application.documentIds && application.documentIds.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {application.documentIds.map((fileId, index) => (
-                <a
+                <VerificationDocumentLink
                   key={fileId}
-                  href={fileView(
-                    appwriteConfig.buckets.verificationDocuments,
-                    fileId,
-                  )}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary hover:bg-secondary"
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">
-                    {application.documentLabels?.[index] ?? `Document ${index + 1}`}
-                  </span>
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
+                  fileId={fileId}
+                  label={
+                    application.documentLabels?.[index] ??
+                    `Document ${index + 1}`
+                  }
+                />
               ))}
             </div>
           )}
@@ -1110,12 +1102,13 @@ function PropertyRow({
               Reject location
             </Button>
           )}
-          {property.status !== "approved" && (
+          {property.status !== "approved" &&
+            property.locationVerificationStatus === "verified" && (
             <Button
               size="sm"
               className="w-full md:w-auto"
               onClick={() => run("approveProperty", "approved & published")}
-              disabled={!!busy || property.locationVerificationStatus !== "verified"}
+              disabled={!!busy}
             >
               {busy === "approveProperty" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1124,6 +1117,12 @@ function PropertyRow({
               )}
               Approve
             </Button>
+          )}
+          {property.status !== "approved" &&
+            property.locationVerificationStatus !== "verified" && (
+            <p className="text-xs text-muted-foreground sm:col-span-3">
+              Verify the physical location before publishing.
+            </p>
           )}
           {property.status !== "rejected" && (
             <Button
@@ -1317,23 +1316,14 @@ function PartnerCompanyRow({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {documentIds.map((fileId, index) => (
-                    <a
+                    <VerificationDocumentLink
                       key={fileId}
-                      href={fileView(
-                        appwriteConfig.buckets.verificationDocuments,
-                        fileId,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-primary hover:bg-secondary"
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">
-                        {application?.documentLabels?.[index] ??
-                          `Document ${index + 1}`}
-                      </span>
-                      <ExternalLink className="h-3 w-3 shrink-0" />
-                    </a>
+                      fileId={fileId}
+                      label={
+                        application?.documentLabels?.[index] ??
+                        `Document ${index + 1}`
+                      }
+                    />
                   ))}
                 </div>
               </div>

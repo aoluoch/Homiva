@@ -58,3 +58,28 @@ export function fileView(bucketId: string, fileId: string): string {
   const url = storage.getFileView({ bucketId, fileId });
   return url;
 }
+
+/**
+ * Fetch a private Storage file using the current session and return a blob URL.
+ *
+ * `fileView()` URLs are unauthenticated — the Web SDK keeps the session in
+ * localStorage, so `<a href={fileView(...)}>` cannot read `team:admins` or
+ * `user:<self>` files.
+ */
+export async function fetchAuthenticatedFileUrl(
+  bucketId: string,
+  fileId: string,
+): Promise<string> {
+  const { jwt } = await account.createJWT();
+  const res = await fetch(String(storage.getFileView({ bucketId, fileId })), {
+    headers: {
+      "X-Appwrite-Project": appwriteConfig.projectId,
+      "X-Appwrite-JWT": jwt,
+    },
+  });
+  if (!res.ok) {
+    throw new Error("Could not open this document.");
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}

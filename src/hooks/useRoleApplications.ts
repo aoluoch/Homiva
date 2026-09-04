@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ID, Permission, Query, Role } from "appwrite";
 import { storage, tablesDB } from "@/lib/appwrite";
+import { executeHomivaAdmin } from "@/lib/homivaAdmin";
 import {
   APPLICABLE_ROLES,
   appwriteConfig,
@@ -49,6 +50,12 @@ async function uploadApplicationDocuments(
         ],
       });
       uploaded.push(res.$id);
+    }
+    if (uploaded.length > 0) {
+      await executeHomivaAdmin({
+        action: "shareVerificationFiles",
+        fileIds: uploaded,
+      });
     }
   } catch (error) {
     await Promise.allSettled(

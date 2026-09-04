@@ -15,9 +15,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useMyProperties } from "@/hooks/useProperties";
 import { useDeleteProperty } from "@/hooks/usePropertyMutations";
+import {
+  useOwnerViewingRequests,
+  useUpdateViewingRequest,
+} from "@/hooks/useBuying";
 import { formatKES } from "@/lib/utils";
+import { formatStayDate } from "@/lib/booking";
 import { propertyCover, PROPERTY_PLACEHOLDER } from "@/components/property/propertyImage";
-import type { PropertyStatus } from "@/types/models";
+import type { PropertyStatus, ViewingRequest } from "@/types/models";
 
 const statusVariant: Record<
   PropertyStatus,
@@ -76,6 +81,8 @@ export default function OwnerDashboardPage() {
         <StatCard label="Approved (live)" value={stats.approved} />
         <StatCard label="Pending review" value={stats.pending} />
       </div>
+
+      <OwnerViewingRequests />
 
       {isLoading ? (
         <div className="space-y-3">
@@ -152,6 +159,85 @@ export default function OwnerDashboardPage() {
           }
         />
       )}
+    </div>
+  );
+}
+
+function OwnerViewingRequests() {
+  const { data: requests, isLoading } = useOwnerViewingRequests();
+  const update = useUpdateViewingRequest();
+  const open = (requests ?? []).filter(
+    (r) => r.status === "requested" || r.status === "confirmed",
+  );
+
+  const setStatus = (request: ViewingRequest, status: string) => {
+    update.mutate(
+      { id: request.$id, status },
+      {
+        onSuccess: () => toast.success(`Viewing ${status}.`),
+        onError: (err) => toast.error((err as Error).message),
+      },
+    );
+  };
+
+  if (isLoading || !open.length) return null;
+
+  return (
+    <div className="mb-8 space-y-3">
+      <h2 className="text-lg font-semibold">Viewing requests</h2>
+      {open.map((request) => (
+        <Card key={request.$id}>
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-medium">
+                  {request.propertyTitle || "Property viewing"}
+                </p>
+                <Badge variant="warning">{request.status}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {request.userName || "Homiva user"} · preferred{" "}
+                {formatStayDate(request.preferredDate)}
+                {request.phone ? ` · ${request.phone}` : ""}
+              </p>
+              {request.message ? (
+                <p className="mt-1 text-sm">{request.message}</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {request.status === "requested" && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => setStatus(request, "confirmed")}
+                    disabled={update.isPending}
+                  >
+                    Confirm
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStatus(request, "declined")}
+                    disabled={update.isPending}
+                  >
+                    Decline
+                  </Button>
+                </>
+              )}
+              {request.status === "confirmed" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setStatus(request, "completed")}
+                  disabled={update.isPending}
+                >
+                  Mark completed
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

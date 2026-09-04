@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { cn, initials, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import {
+  useMarkThreadRead,
   useSendMessage,
   useThreadMessages,
   useThreads,
@@ -22,6 +23,7 @@ export default function MessagesPage() {
 
   const { data: messages } = useThreadMessages(activeThread || undefined);
   const send = useSendMessage();
+  const markRead = useMarkThreadRead();
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +33,12 @@ export default function MessagesPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!messages?.length) return;
+    if (!messages.some((m) => m.receiverId === user?.$id && !m.read)) return;
+    markRead.mutate(messages);
+  }, [messages, markRead, user?.$id]);
 
   const submit = () => {
     if (!text.trim() || !receiverId) return;

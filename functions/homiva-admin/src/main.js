@@ -1,17 +1,17 @@
-import { Client, TablesDB, Teams, Query, ID, Permission, Role } from "node-appwrite";
+import { Client, TablesDB, Teams, Users, Storage, Query, ID, Permission, Role } from "node-appwrite";
 
 /**
- * Homiva admin function.
+ * Homiva privileged function.
  *
- * Handles privileged operations that require an API key:
- *   - approveRole / rejectRole / suspendRole  (role_applications + team membership)
- *   - approveProperty / rejectProperty        (property status + public read)
- *
- * The caller must be a member of the `admins` team. Appwrite injects the
- * authenticated caller's id via the `x-appwrite-user-id` header.
+ * Uses an API key so it can grant document/file permissions a browser
+ * session cannot (other users, team:admins). Admin-only actions still
+ * require membership in the `admins` team. User-scoped actions
+ * (viewing requests, messages, verification file sharing) are available
+ * to any authenticated caller and always bind records to `callerId`.
  */
 
 const DB = "homiva";
+const VERIFICATION_BUCKET = "verification-documents";
 const T = {
   profiles: "profiles",
   roleApplications: "role_applications",
@@ -22,6 +22,8 @@ const T = {
   storefronts: "storefronts",
   products: "products",
   auditLogs: "audit_logs",
+  viewingRequests: "viewing_requests",
+  messages: "messages",
 };
 const APPLICABLE_ROLE_TEAMS = new Set([
   "agents",
@@ -30,6 +32,33 @@ const APPLICABLE_ROLE_TEAMS = new Set([
   "movers",
   "cleaning_companies",
   "interior_designers",
+]);
+const ADMIN_ACTIONS = new Set([
+  "approveRole",
+  "rejectRole",
+  "suspendRole",
+  "approveProperty",
+  "verifyPropertyLocation",
+  "rejectPropertyLocation",
+  "rejectProperty",
+  "verifyProvider",
+  "unverifyProvider",
+  "approvePartnerCompany",
+  "rejectPartnerCompany",
+  "suspendPartnerCompany",
+  "featurePartnerCompany",
+  "unfeaturePartnerCompany",
+  "updateServiceRequest",
+  "approveStorefront",
+  "rejectStorefront",
+  "verifyStorefront",
+  "approveProduct",
+  "rejectProduct",
+]);
+const USER_ACTIONS = new Set([
+  "createViewingRequest",
+  "sendMessage",
+  "shareVerificationFiles",
 ]);
 
 export default async ({ req, res, log, error }) => {
@@ -48,26 +77,13 @@ export default async ({ req, res, log, error }) => {
 
   const tablesDB = new TablesDB(client);
   const teams = new Teams(client);
+  const users = new Users(client);
+  const storage = new Storage(client);
 
   const fail = (message, code = 400) => res.json({ ok: false, error: message }, code);
 
   const callerId = req.headers["x-appwrite-user-id"];
   if (!callerId) return fail("Not authenticated.", 401);
-
-  // Verify caller is an admin (filter memberships in-code for reliability).
-  try {
-    const memberships = await teams.listMemberships({
-      teamId: "admins",
-      queries: [Query.limit(200)],
-    });
-    const isAdmin = memberships.memberships.some((m) => m.userId === callerId);
-    if (!isAdmin) {
-      return fail("Admin access required.", 403);
-    }
-  } catch (e) {
-    error(`Admin check failed: ${e.message}`);
-    return fail("Admin verification failed.", 403);
-  }
 
   let body;
   try {
@@ -91,6 +107,27 @@ export default async ({ req, res, log, error }) => {
     note,
   } = body;
 
+  if (!action) return fail("Action is required.");
+  if (!ADMIN_ACTIONS.has(action) && !USER_ACTIONS.has(action)) {
+    return fail(`Unknown action: ${action}`);
+  }
+
+  if (ADMIN_ACTIONS.has(action)) {
+    try {
+      const memberships = await teams.listMemberships({
+        teamId: "admins",
+        queries: [Query.limit(200)],
+      });
+      const isAdmin = memberships.memberships.some((m) => m.userId === callerId);
+      if (!isAdmin) {
+        return fail("Admin access required.", 403);
+      }
+    } catch (e) {
+      error(`Admin check failed: ${e.message}`);
+      return fail("Admin verification failed.", 403);
+    }
+  }
+
   const logAction = async (targetType, targetId, summary) => {
     try {
       await tablesDB.createRow({
@@ -111,7 +148,7 @@ export default async ({ req, res, log, error }) => {
     }
   };
 
-  const updateProfileRoles = async (userId, roleTeam, add) => {
+  const updateProfileRoles = async (userId, roleTeam, add, identity = {}) => {
     try {
       const list = await tablesDB.listRows({
         databaseId: DB,
@@ -119,7 +156,40 @@ export default async ({ req, res, log, error }) => {
         queries: [Query.equal("userId", userId), Query.limit(1)],
       });
       const profile = list.rows[0];
-      if (!profile) return;
+      if (!profile) {
+        if (!add) return;
+        let name = String(identity.name || "").trim();
+        let email = String(identity.email || "").trim();
+        if (!email || !name) {
+          try {
+            const account = await users.get({ userId });
+            name = name || account.name || (account.email || "").split("@")[0];
+            email = email || account.email || "";
+          } catch (e) {
+            log(`Could not load user ${userId}: ${e.message}`);
+          }
+        }
+        if (!email) {
+          log(`Cannot create profile for ${userId}: no email available.`);
+          return;
+        }
+        await tablesDB.createRow({
+          databaseId: DB,
+          tableId: T.profiles,
+          rowId: ID.unique(),
+          data: {
+            userId,
+            name: name || "Homiva user",
+            email,
+            roles: [roleTeam],
+          },
+          permissions: [
+            Permission.read(Role.user(userId)),
+            Permission.update(Role.user(userId)),
+          ],
+        });
+        return;
+      }
       const roles = new Set(profile.roles || []);
       if (add) roles.add(roleTeam);
       else roles.delete(roleTeam);
@@ -165,7 +235,10 @@ export default async ({ req, res, log, error }) => {
           rowId: applicationId,
           data: { status: "approved", reviewedBy: callerId, reviewNote: note || "" },
         });
-        await updateProfileRoles(app.userId, app.role, true);
+        await updateProfileRoles(app.userId, app.role, true, {
+          name: app.userName,
+          email: app.userEmail,
+        });
         await logAction("role_application", applicationId, `Approved ${app.roleLabel || app.role} for ${app.userEmail || app.userId}.`);
         return res.json({ ok: true });
       }
@@ -477,6 +550,114 @@ export default async ({ req, res, log, error }) => {
           data: { status: "rejected" },
         });
         await logAction("product", productId, "Rejected product.");
+        return res.json({ ok: true });
+      }
+
+      case "createViewingRequest": {
+        const preferredDate = String(body.preferredDate || "").trim();
+        if (!propertyId) return fail("Property ID is required.");
+        if (!preferredDate) return fail("Please choose a preferred date.");
+        const property = await tablesDB.getRow({
+          databaseId: DB,
+          tableId: T.properties,
+          rowId: propertyId,
+        });
+        if (property.ownerId && property.ownerId === callerId) {
+          return fail("You cannot request a viewing of your own listing.");
+        }
+        const ownerId = property.ownerId || "";
+        const permissions = [
+          Permission.read(Role.user(callerId)),
+          Permission.read(Role.team("admins")),
+          Permission.update(Role.team("admins")),
+        ];
+        if (ownerId) {
+          permissions.push(
+            Permission.read(Role.user(ownerId)),
+            Permission.update(Role.user(ownerId)),
+          );
+        }
+        const row = await tablesDB.createRow({
+          databaseId: DB,
+          tableId: T.viewingRequests,
+          rowId: ID.unique(),
+          data: {
+            userId: callerId,
+            userName: String(body.userName || "").trim(),
+            phone: String(body.phone || "").trim(),
+            propertyId: property.$id,
+            propertyTitle: property.title || "",
+            ownerId,
+            preferredDate,
+            alternateDate: String(body.alternateDate || "").trim() || null,
+            message: String(body.message || "").trim(),
+            status: "requested",
+          },
+          permissions,
+        });
+        return res.json({ ok: true, row });
+      }
+
+      case "sendMessage": {
+        const receiverId = String(body.receiverId || "").trim();
+        const messageBody = String(body.body || "").trim();
+        if (!receiverId) return fail("Receiver is required.");
+        if (receiverId === callerId) return fail("You cannot message yourself.");
+        if (!messageBody) return fail("Message cannot be empty.");
+        if (messageBody.length > 3000) return fail("Message is too long.");
+        const contextId = String(body.contextId || "").trim();
+        const pair = [callerId, receiverId].sort().join("_");
+        const threadId = contextId ? `${pair}__${contextId}` : pair;
+        const row = await tablesDB.createRow({
+          databaseId: DB,
+          tableId: T.messages,
+          rowId: ID.unique(),
+          data: {
+            threadId,
+            senderId: callerId,
+            senderName: String(body.senderName || "").trim(),
+            receiverId,
+            body: messageBody,
+            contextType: String(body.contextType || "").trim(),
+            contextId,
+            read: false,
+          },
+          permissions: [
+            Permission.read(Role.user(callerId)),
+            Permission.update(Role.user(callerId)),
+            Permission.delete(Role.user(callerId)),
+            Permission.read(Role.user(receiverId)),
+            Permission.update(Role.user(receiverId)),
+          ],
+        });
+        return res.json({ ok: true, row });
+      }
+
+      case "shareVerificationFiles": {
+        const fileIds = Array.isArray(body.fileIds) ? body.fileIds : [];
+        if (fileIds.length === 0) return fail("No files to share.");
+        if (fileIds.length > 20) return fail("Too many files.");
+        const adminRead = Permission.read(Role.team("admins"));
+        for (const fileId of fileIds) {
+          const id = String(fileId || "").trim();
+          if (!id) return fail("Invalid file id.");
+          const file = await storage.getFile({
+            bucketId: VERIFICATION_BUCKET,
+            fileId: id,
+          });
+          const perms = file.$permissions || [];
+          const owned = perms.some((p) => p.includes(`user:${callerId}`));
+          if (!owned) {
+            return fail("You can only share files you uploaded.", 403);
+          }
+          if (!perms.includes(adminRead)) {
+            await storage.updateFile({
+              bucketId: VERIFICATION_BUCKET,
+              fileId: id,
+              permissions: [...perms, adminRead],
+            });
+          }
+        }
         return res.json({ ok: true });
       }
 

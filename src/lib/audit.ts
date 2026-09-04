@@ -1,6 +1,6 @@
 import { ID, Permission, Role } from "appwrite";
 import { tablesDB } from "@/lib/appwrite";
-import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
+import { appwriteConfig, TABLES } from "@/lib/config";
 
 export interface AdminAuditEntry {
   /** The admin performing the action (user $id). */
@@ -38,7 +38,9 @@ export async function logAdminAudit(entry: AdminAuditEntry): Promise<void> {
         targetId: entry.targetId ?? "",
         summary: entry.summary,
       },
-      permissions: [Permission.read(Role.team(TEAMS.admins))],
+        // Clients may only grant roles they hold. Admins already have
+        // table-level read on audit_logs, so a self grant is enough.
+        permissions: [Permission.read(Role.user(entry.actorId))],
     });
   } catch {
     // Best-effort: never let audit logging interrupt the primary action.

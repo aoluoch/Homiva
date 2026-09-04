@@ -1,5 +1,5 @@
 import { ID, Permission, Role } from "appwrite";
-import { functions, storage } from "@/lib/appwrite";
+import { account, functions, storage } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 
 /**
@@ -26,16 +26,30 @@ export async function compressStoredImage(
  * Upload an image to a Storage bucket and compress it to ~1MB via the edge
  * function. Returns the stored fileId (unchanged by compression).
  */
+async function defaultUploadPermissions(): Promise<string[]> {
+  const permissions = [Permission.read(Role.any())];
+  try {
+    const me = await account.get();
+    permissions.push(
+      Permission.update(Role.user(me.$id)),
+      Permission.delete(Role.user(me.$id)),
+    );
+  } catch {
+    // Anonymous uploads keep public read only.
+  }
+  return permissions;
+}
+
 export async function uploadImageToStorage(
   bucketId: string,
   file: File,
-  permissions: string[] = [Permission.read(Role.any())],
+  permissions?: string[],
 ): Promise<string> {
   const res = await storage.createFile({
     bucketId,
     fileId: ID.unique(),
     file,
-    permissions,
+    permissions: permissions ?? (await defaultUploadPermissions()),
   });
   await compressStoredImage(bucketId, res.$id);
   return res.$id;

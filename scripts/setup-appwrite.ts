@@ -301,7 +301,7 @@ async function main() {
     storage.createBucket({
       bucketId: "property-images",
       name: "Property Images",
-      permissions: [P.createUsers, P.readAny],
+      permissions: [P.createUsers, P.readAny, P.deleteAdmins],
       fileSecurity: true,
       enabled: true,
     }),
@@ -310,7 +310,7 @@ async function main() {
     storage.createBucket({
       bucketId: "avatars",
       name: "Avatars",
-      permissions: [P.createUsers, P.readAny],
+      permissions: [P.createUsers, P.readAny, P.deleteAdmins],
       fileSecurity: true,
       enabled: true,
     }),
@@ -319,7 +319,7 @@ async function main() {
     storage.createBucket({
       bucketId: "product-images",
       name: "Product Images",
-      permissions: [P.createUsers, P.readAny],
+      permissions: [P.createUsers, P.readAny, P.deleteAdmins],
       fileSecurity: true,
       enabled: true,
     }),
@@ -328,7 +328,7 @@ async function main() {
     storage.createBucket({
       bucketId: "store-assets",
       name: "Store Assets",
-      permissions: [P.createUsers, P.readAny],
+      permissions: [P.createUsers, P.readAny, P.deleteAdmins],
       fileSecurity: true,
       enabled: true,
     }),
@@ -337,7 +337,7 @@ async function main() {
     storage.createBucket({
       bucketId: "service-photos",
       name: "Service Photos",
-      permissions: [P.createUsers, P.readAny],
+      permissions: [P.createUsers, P.readAny, P.deleteAdmins],
       fileSecurity: true,
       enabled: true,
     }),
@@ -346,7 +346,7 @@ async function main() {
     storage.createBucket({
       bucketId: "verification-documents",
       name: "Verification Documents",
-      permissions: [P.createUsers, P.readAdmins],
+      permissions: [P.createUsers, P.readAdmins, P.deleteAdmins],
       fileSecurity: true,
       enabled: true,
     }),
@@ -428,7 +428,7 @@ async function main() {
     P.deleteAdmins,
   ]);
   await createTable("products", "Products", [
-    Permission.create(Role.team("admins")),
+    P.createUsers,
     P.readAdmins,
     P.updateAdmins,
     P.deleteAdmins,
@@ -883,14 +883,14 @@ async function main() {
     }
   }
 
-  // Ensure marketplace products are admin-managed only (idempotent permission update).
-  await safe("products permissions (admin create)", () =>
+  // Marketplace products: any authenticated seller can create; admins moderate.
+  await safe("products permissions (seller create)", () =>
     tablesDB.updateTable({
       databaseId: DB,
       tableId: "products",
       name: "Products",
       permissions: [
-        Permission.create(Role.team("admins")),
+        P.createUsers,
         Permission.read(Role.team("admins")),
         Permission.update(Role.team("admins")),
         Permission.delete(Role.team("admins")),
