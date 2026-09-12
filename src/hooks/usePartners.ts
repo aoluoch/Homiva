@@ -269,6 +269,8 @@ export function useSubscribePartnerCompany() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-partner-company"] });
       qc.invalidateQueries({ queryKey: ["partner-companies"] });
+      qc.invalidateQueries({ queryKey: ["partner-company"] });
+      qc.invalidateQueries({ queryKey: ["admin", "partner-companies"] });
     },
   });
 }

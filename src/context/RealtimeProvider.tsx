@@ -90,7 +90,12 @@ const tableQueryKeys: Partial<Record<TableId, string[][]>> = {
     ["admin", "products"],
     ["admin", "stats"],
   ],
-  [TABLES.orders]: [["seller-orders"], ["my-orders"], ["admin", "stats"]],
+  [TABLES.orders]: [
+    ["seller-orders"],
+    ["my-orders"],
+    ["admin", "orders"],
+    ["admin", "stats"],
+  ],
   [TABLES.appSettings]: [["marketplace", "delivery-fee"]],
   [TABLES.subscriptions]: [
     ["my-storefront"],

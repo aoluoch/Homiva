@@ -53,7 +53,6 @@ export default function NotificationsPage() {
                   "flex items-start gap-3 rounded-lg border p-4 transition-colors",
                   !n.read && "border-primary/40 bg-primary/5",
                 )}
-                onClick={() => !n.read && markRead.mutate(n.$id)}
               >
                 <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                   <Bell className="h-4 w-4" />
@@ -73,11 +72,22 @@ export default function NotificationsPage() {
               </div>
             );
             return n.link ? (
-              <Link key={n.$id} to={n.link}>
+              <Link
+                key={n.$id}
+                to={n.link}
+                onClick={() => {
+                  if (!n.read) markRead.mutate(n.$id);
+                }}
+              >
                 {content}
               </Link>
             ) : (
-              <div key={n.$id}>{content}</div>
+              <div
+                key={n.$id}
+                onClick={() => !n.read && markRead.mutate(n.$id)}
+              >
+                {content}
+              </div>
             );
           })}
         </div>

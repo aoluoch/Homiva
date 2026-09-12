@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, Check, ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,11 @@ import {
 import { filePreview } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { cn, formatKES } from "@/lib/utils";
+import { useVerifyExistingPayment } from "@/hooks/usePayment";
+import {
+  clearPendingPayment,
+  loadPendingPayment,
+} from "@/lib/pendingPayment";
 import {
   useDeletePartnerPortfolioImage,
   useMyPartnerCompany,
@@ -219,8 +224,43 @@ function ProfileForm({ company }: { company?: import("@/types/models").PartnerCo
 
 function SubscriptionPanel({ company }: { company: import("@/types/models").PartnerCompany }) {
   const subscribe = useSubscribePartnerCompany();
+  const retryPayment = useVerifyExistingPayment();
+  const retriedPending = useRef(false);
   const isPublished =
     company.status === "approved" && company.subscriptionStatus === "active";
+
+  useEffect(() => {
+    if (isPublished) {
+      clearPendingPayment();
+      return;
+    }
+    if (retriedPending.current) return;
+    const pending = loadPendingPayment();
+    const pendingCompanyId =
+      pending?.metadata?.partnerCompanyId || pending?.metadata?.targetId;
+    if (pending?.purpose !== "subscription" || pendingCompanyId !== company.$id) {
+      return;
+    }
+    retriedPending.current = true;
+    retryPayment.mutate(
+      {
+        reference: pending.reference,
+        purpose: pending.purpose,
+        metadata: pending.metadata,
+      },
+      {
+        onSuccess: () => toast.success("Subscription activated."),
+        onError: (err) => {
+          const message = (err as Error).message || "";
+          if (/not successful|abandoned|cancelled/i.test(message)) {
+            clearPendingPayment();
+            return;
+          }
+          toast.error(message);
+        },
+      },
+    );
+  }, [company.$id, isPublished, retryPayment]);
   return (
     <div className="mt-6 grid max-w-md gap-4">
       <p className="text-sm text-muted-foreground">

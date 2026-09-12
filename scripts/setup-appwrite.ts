@@ -981,6 +981,7 @@ async function main() {
   await index("audit_logs", "idx_action", IndexType.Key, ["action"]);
   await index("audit_logs", "idx_target", IndexType.Key, ["targetType", "targetId"]);
   await index("notifications", "idx_user", IndexType.Key, ["userId"]);
+  await index("notifications", "idx_user_read", IndexType.Key, ["userId", "read"]);
   await index("invoices", "idx_user", IndexType.Key, ["userId"]);
   await index("invoices", "idx_provider", IndexType.Key, ["providerId"]);
   await index("invoices", "idx_service", IndexType.Key, ["serviceRequestId"]);

@@ -65,6 +65,7 @@ export async function openPaystackCheckout(
   if (!Pop) throw new Error("Paystack failed to initialise.");
 
   return new Promise<CheckoutResult>((resolve, reject) => {
+    let settled = false;
     const handler = Pop.setup({
       key: paystackConfig.publicKey,
       email: params.email,
@@ -73,10 +74,18 @@ export async function openPaystackCheckout(
       ref: params.reference,
       metadata: params.metadata ?? {},
       callback: (response: { reference: string }) => {
+        if (settled) return;
+        settled = true;
         resolve({ reference: response.reference });
       },
       onClose: () => {
-        reject(new Error("Payment cancelled."));
+        // Paystack often fires onClose after a successful charge. Wait so the
+        // callback can settle first; otherwise a paid partner never gets published.
+        window.setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          reject(new Error("Payment cancelled."));
+        }, 600);
       },
     });
     handler.openIframe();

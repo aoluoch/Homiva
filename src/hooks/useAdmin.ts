@@ -1,9 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Query, tablesDB } from "@/lib/appwrite";
+import { Permission, Role } from "appwrite";
+import { ID, Query, tablesDB } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { appwriteConfig, SUBSCRIPTION_PLANS, TABLES } from "@/lib/config";
 import { logAdminAudit } from "@/lib/audit";
 import { executeHomivaAdmin } from "@/lib/homivaAdmin";
+import {
+  markMatchingNotificationsRead,
+  matchesOrderGroup,
+} from "@/hooks/useNotifications";
 import { PAGE_SIZE, useAppwriteInfiniteRows } from "@/lib/pagination";
 import type {
   AuditLog,
@@ -234,6 +239,23 @@ export function useAdminBookingProperties(propertyIds: string[]) {
   });
 }
 
+function asOrder(row: unknown): Order {
+  const record = row as Record<string, unknown>;
+  const nested = record.data;
+  const fields =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? { ...record, ...(nested as Record<string, unknown>) }
+      : record;
+  const typed = fields as unknown as Order;
+  return {
+    ...typed,
+    $id: String(record.$id ?? typed.$id ?? ""),
+    $createdAt: String(record.$createdAt ?? typed.$createdAt ?? ""),
+    $updatedAt: String(record.$updatedAt ?? typed.$updatedAt ?? ""),
+    status: typed.status,
+  };
+}
+
 /** All marketplace orders (admins can read every order for fulfilment). */
 export function useAdminOrders() {
   const enabled = useAdminEnabled();
@@ -246,7 +268,7 @@ export function useAdminOrders() {
         tableId: TABLES.orders,
         queries: [Query.orderDesc("$createdAt"), Query.limit(200)],
       });
-      return res.rows as unknown as Order[];
+      return (res.rows as unknown[]).map(asOrder);
     },
   });
 }
@@ -288,10 +310,12 @@ export function useAdminUpdateOrderStatus() {
       orderIds,
       status,
       summary,
+      groupId,
     }: {
       orderIds: string[];
       status: string;
       summary?: string;
+      groupId?: string;
     }) => {
       await Promise.all(
         orderIds.map((rowId) =>
@@ -312,14 +336,44 @@ export function useAdminUpdateOrderStatus() {
           summary ??
           `Marked ${orderIds.length} order line(s) as ${status}.`,
       });
-      return { orderIds, status };
+      if (user?.$id && ["shipped", "delivered", "cancelled"].includes(status)) {
+        try {
+          await markMatchingNotificationsRead(user.$id, (notification) =>
+            matchesOrderGroup(notification, groupId),
+          );
+        } catch {
+          // Fulfilment must succeed even if inbox cleanup fails.
+        }
+      }
+      return { orderIds, status, groupId };
     },
-    onSuccess: () => {
+    onMutate: async ({ orderIds, status }) => {
+      await qc.cancelQueries({ queryKey: ["admin", "orders"] });
+      const previous = qc.getQueryData<Order[]>(["admin", "orders"]);
+      qc.setQueryData<Order[]>(["admin", "orders"], (current) =>
+        current?.map((order) =>
+          orderIds.includes(order.$id)
+            ? { ...order, status: status as Order["status"] }
+            : order,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["admin", "orders"], context.previous);
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["admin", "orders"] });
       qc.invalidateQueries({ queryKey: ["admin", "stats"] });
       qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
       qc.invalidateQueries({ queryKey: ["seller-orders"] });
       qc.invalidateQueries({ queryKey: ["my-orders"] });
+      if (user?.$id) {
+        qc.invalidateQueries({ queryKey: ["notifications", user.$id] });
+        qc.invalidateQueries({ queryKey: ["notifications-unread", user.$id] });
+      }
     },
   });
 }
@@ -400,6 +454,77 @@ interface AdminActionPayload {
 
 async function callAdmin(payload: AdminActionPayload) {
   return executeHomivaAdmin(payload);
+}
+
+/** Publish an approved partner to the public directory for 30 days. */
+export function useAdminPublishPartnerListing() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (company: PartnerCompany) => {
+      if (company.status !== "approved") {
+        throw new Error("Approve the partner company before publishing it.");
+      }
+      const now = new Date();
+      const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const expiryIso = expiry.toISOString();
+      const plan = company.plan || SUBSCRIPTION_PLANS[0]?.key || "basic";
+      const amount = SUBSCRIPTION_PLANS.find((item) => item.key === plan)?.price ?? 2000;
+
+      await tablesDB.updateRow({
+        databaseId: DB,
+        tableId: TABLES.partnerCompanies,
+        rowId: company.$id,
+        data: {
+          plan,
+          subscriptionStatus: "active",
+          subscriptionExpiry: expiryIso,
+        },
+      });
+
+      try {
+        await tablesDB.createRow({
+          databaseId: DB,
+          tableId: TABLES.subscriptions,
+          rowId: ID.unique(),
+          data: {
+            userId: company.ownerId,
+            targetType: "partner_company",
+            targetId: company.$id,
+            plan,
+            amount,
+            status: "active",
+            reference: `ADMIN-${Date.now()}`,
+            startedAt: now.toISOString(),
+            expiresAt: expiryIso,
+          },
+          permissions: [
+            Permission.read(Role.user(company.ownerId)),
+            Permission.read(Role.team("admins")),
+          ],
+        });
+      } catch {
+        // Directory publish must succeed even if the ledger row cannot be written.
+      }
+
+      await logAdminAudit({
+        actorId: user?.$id ?? "",
+        action: "partner_listing_published",
+        targetType: "partner_company",
+        targetId: company.$id,
+        summary: `Published ${company.name} to the public partner directory for 30 days.`,
+      });
+      return { companyId: company.$id, expiryIso };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "partner-companies"] });
+      qc.invalidateQueries({ queryKey: ["partner-companies"] });
+      qc.invalidateQueries({ queryKey: ["partner-company"] });
+      qc.invalidateQueries({ queryKey: ["my-partner-company"] });
+      qc.invalidateQueries({ queryKey: ["admin", "stats"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-logs"] });
+    },
+  });
 }
 
 export function useAdminAction() {

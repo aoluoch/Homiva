@@ -1,4 +1,5 @@
 import { Client, TablesDB, ID, Permission, Role, Query, Messaging, Teams, Users } from "node-appwrite";
+import { completeSubscriptionFulfillment } from "./subscription.js";
 
 /**
  * Homiva payments function.
@@ -44,7 +45,6 @@ const T = {
 };
 
 const VIEWING_FEE_KES = 200;
-const PLAN_PRICES = { basic: 2000 };
 const MARKETPLACE_DELIVERY_FEE_SETTING = "marketplace_delivery_fee_kes";
 const MARKETPLACE_DELIVERY_FEE_ROW_ID = "marketplace_delivery_fee";
 const DEFAULT_MARKETPLACE_DELIVERY_FEE_KES = 300;
@@ -126,10 +126,27 @@ export default async ({ req, res, log, error }) => {
       queries: [Query.equal("reference", reference), Query.limit(1)],
     });
     if (existing.rows.length > 0) {
-      if (existing.rows[0].userId !== callerId) {
+      const recorded = existing.rows[0];
+      const recordedUserId = recorded.userId ?? recorded.data?.userId;
+      if (recordedUserId && recordedUserId !== callerId) {
         return fail("This payment reference has already been used.", 409);
       }
-      return res.json({ ok: true, alreadyProcessed: true, payment: existing.rows[0] });
+      if (purpose === "subscription") {
+        try {
+          await completeSubscriptionFulfillment({
+            tablesDB,
+            callerId,
+            metadata,
+            amountKES: Number(recorded.amount ?? recorded.data?.amount ?? 0),
+            reference,
+            log,
+            skipPaymentRecord: true,
+          });
+        } catch (e) {
+          log(`Replay subscription fulfillment note: ${e.message}`);
+        }
+      }
+      return res.json({ ok: true, alreadyProcessed: true, payment: recorded });
     }
   } catch (e) {
     log(`Replay check note: ${e.message}`);
@@ -141,13 +158,13 @@ export default async ({ req, res, log, error }) => {
     Permission.read(Role.team("admins")),
   ];
 
-  const notify = async (userId, title, bodyText, link) => {
+  const notify = async (userId, title, bodyText, link, type = "payment") => {
     try {
       await tablesDB.createRow({
         databaseId: DB,
         tableId: T.notifications,
         rowId: ID.unique(),
-        data: { userId, type: "payment", title, body: bodyText || "", link: link || "", read: false },
+        data: { userId, type, title, body: bodyText || "", link: link || "", read: false },
         permissions: [
           Permission.read(Role.user(userId)),
           Permission.update(Role.user(userId)),
@@ -461,91 +478,42 @@ export default async ({ req, res, log, error }) => {
             await notify(product.sellerId, "New order", `${buyerName} ordered ${product.title}.`, "/orders");
           }
         }
+        const adminIds = await adminUserIds(teams);
+        const itemCount = orders.length;
+        const titles = [...new Set(orders.map((order) => order.productTitle).filter(Boolean))];
+        const itemLabel =
+          itemCount === 1
+            ? titles[0] || "an item"
+            : `${itemCount} items`;
+        await Promise.all(
+          adminIds
+            .filter((id) => id && id !== callerId)
+            .map((adminId) =>
+              notify(
+                adminId,
+                itemCount === 1 ? "New order to deliver" : "New orders to deliver",
+                `${buyerName} ordered ${itemLabel}.`,
+                `/admin?tab=orders&group=${orderGroupId}`,
+                "order",
+              ),
+            ),
+        );
         return res.json({ ok: true, orders, orderGroupId });
       }
 
       case "subscription": {
-        const { plan, storefrontId, partnerCompanyId, targetType, targetId } = metadata;
-        if (!plan || !(plan in PLAN_PRICES)) return fail("Invalid plan.");
-        assertPaidAmount(PLAN_PRICES[plan]);
-        const resolvedTargetType = targetType || (partnerCompanyId ? "partner_company" : "storefront");
-        const resolvedTargetId = targetId || partnerCompanyId || storefrontId || "";
-        if (resolvedTargetType === "partner_company") {
-          if (!resolvedTargetId) return fail("Missing partner company id.");
-          const company = await tablesDB.getRow({
-            databaseId: DB,
-            tableId: T.partnerCompanies,
-            rowId: resolvedTargetId,
-          });
-          const ownerId = rowField(company, "ownerId");
-          const companyStatus = rowField(company, "status");
-          if (ownerId !== callerId) {
-            return fail("You can only subscribe your own partner company profile.", 403);
-          }
-          // Partners typically pay immediately after submitting a profile, before
-          // an admin has approved it. Charge and mark the subscription active now;
-          // the public directory still requires status === "approved".
-          if (companyStatus === "rejected" || companyStatus === "suspended") {
-            return fail("This partner company cannot be published.");
-          }
-        } else if (storefrontId) {
-          const store = await tablesDB.getRow({
-            databaseId: DB,
-            tableId: T.storefronts,
-            rowId: storefrontId,
-          });
-          if (rowField(store, "ownerId") !== callerId) {
-            return fail("You can only subscribe your own storefront.", 403);
-          }
-        }
-        const now = new Date();
-        const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const expiryIso = expiry.toISOString();
-        // Publish the paid profile before recording payment rows so a later
-        // bookkeeping failure cannot leave a charged partner unpublished.
-        if (resolvedTargetType === "partner_company") {
-          await tablesDB.updateRow({
-            databaseId: DB,
-            tableId: T.partnerCompanies,
-            rowId: resolvedTargetId,
-            data: {
-              plan,
-              subscriptionStatus: "active",
-              subscriptionExpiry: expiryIso,
-            },
-          });
-        } else if (storefrontId) {
-          await tablesDB.updateRow({
-            databaseId: DB,
-            tableId: T.storefronts,
-            rowId: storefrontId,
-            data: {
-              plan,
-              subscriptionStatus: "active",
-              subscriptionExpiry: expiryIso,
-            },
-          });
-        }
-        await recordPayment();
-        const sub = await tablesDB.createRow({
-          databaseId: DB,
-          tableId: T.subscriptions,
-          rowId: ID.unique(),
-          data: {
-            userId: callerId,
-            storefrontId: storefrontId || "",
-            targetType: resolvedTargetType,
-            targetId: resolvedTargetId,
-            plan,
-            amount: amountKES,
-            status: "active",
-            reference,
-            startedAt: now.toISOString(),
-            expiresAt: expiryIso,
-          },
-          permissions: [...userPerms, Permission.update(Role.user(callerId))],
+        const result = await completeSubscriptionFulfillment({
+          tablesDB,
+          callerId,
+          metadata,
+          amountKES,
+          reference,
+          log,
+          recordPayment,
+          userPerms,
+          assertPaidAmount,
         });
-        return res.json({ ok: true, subscription: sub });
+        return res.json({ ok: true, ...result });
       }
 
       default:
@@ -556,12 +524,6 @@ export default async ({ req, res, log, error }) => {
     return fail(e.message || "Fulfillment failed.", 500);
   }
 };
-
-function rowField(row, key) {
-  if (!row) return undefined;
-  if (row[key] !== undefined && row[key] !== null) return row[key];
-  return row.data?.[key];
-}
 
 async function profileOf(tablesDB, users, userId) {
   let name = "Homiva user";

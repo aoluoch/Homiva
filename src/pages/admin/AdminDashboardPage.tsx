@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -86,8 +86,16 @@ import {
   usePendingProducts,
   usePendingProperties,
   useUpdateMortgageEnquiry,
+  useAdminPublishPartnerListing,
   type AdminStats,
 } from "@/hooks/useAdmin";
+import { useMarkOrderNotificationsSeen } from "@/hooks/useNotifications";
+import {
+  groupsAwaitingDelivery,
+  groupNeedsDelivery,
+  groupOrders,
+  type OrderGroup,
+} from "@/lib/orders";
 import {
   useAdminUpdateMarketplaceDeliveryFee,
   useMarketplaceDeliveryFee,
@@ -189,6 +197,7 @@ function sortForReview(applications: RoleApplication[]) {
 export default function AdminDashboardPage() {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "overview";
+  const focusGroupId = searchParams.get("group") || "";
   const { data: stats, isLoading: loadingStats } = useAdminStats();
   const {
     items: applications,
@@ -205,6 +214,7 @@ export default function AdminDashboardPage() {
   const { data: serviceRequests, isLoading: loadingServices } =
     useAdminServiceRequests();
   const { data: orders, isLoading: loadingOrders } = useAdminOrders();
+  useMarkOrderNotificationsSeen(initialTab === "orders");
   const {
     items: bookings,
     isLoading: loadingBookings,
@@ -277,7 +287,7 @@ export default function AdminDashboardPage() {
   const pendingPartners = partners?.filter((p) => p.status === "pending") ?? [];
   const openServices =
     serviceRequests?.filter((r) => !["completed", "paid", "cancelled"].includes(String(r.status))) ?? [];
-  const ordersToFulfil = orders?.filter((o) => o.status === "paid") ?? [];
+  const ordersToFulfil = groupsAwaitingDelivery(orders);
   const confirmedBookings = bookings.filter(
     (booking) => booking.status === "confirmed" || booking.status === "completed",
   );
@@ -304,15 +314,22 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         {ordersToFulfil.length > 0 && (
-          <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-2 text-sm shadow-sm">
+          <Link
+            to="/admin?tab=orders"
+            className="flex items-center gap-2 rounded-xl border bg-background px-4 py-2 text-sm shadow-sm hover:bg-secondary/60"
+          >
             <Truck className="h-4 w-4 text-primary" />
             <span className="font-medium">{ordersToFulfil.length}</span>
-            <span className="text-muted-foreground">orders to deliver</span>
-          </div>
+            <span className="text-muted-foreground">
+              {ordersToFulfil.length === 1
+                ? "order to deliver"
+                : "orders to deliver"}
+            </span>
+          </Link>
         )}
       </div>
 
-      <Tabs defaultValue={initialTab}>
+      <Tabs key={initialTab} defaultValue={initialTab}>
         <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
           <TabsList className="h-auto min-w-max justify-start gap-1 rounded-md">
             <TabsTrigger value="overview" className="h-9">
@@ -566,7 +583,11 @@ export default function AdminDashboardPage() {
         </TabsContent>
 
         <TabsContent value="orders" className="mt-6">
-          <OrdersPanel orders={orders} isLoading={loadingOrders} />
+          <OrdersPanel
+            orders={orders}
+            isLoading={loadingOrders}
+            focusGroupId={focusGroupId}
+          />
         </TabsContent>
 
         <TabsContent value="bookings" className="mt-6">
@@ -1151,6 +1172,7 @@ function PartnerCompanyRow({
   ownerName?: string;
 }) {
   const action = useAdminAction();
+  const publishListing = useAdminPublishPartnerListing();
   const [busy, setBusy] = useState<string | null>(null);
 
   const run = (
@@ -1246,6 +1268,13 @@ function PartnerCompanyRow({
                   <Badge variant="warning">not on public directory</Badge>
                 )}
             </div>
+            {company.status === "approved" &&
+              company.subscriptionStatus !== "active" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No active plan. Public listing requires the KES 2,000
+                  partner payment, or Publish to directory.
+                </p>
+              )}
 
             {ownerName && (
               <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
@@ -1378,6 +1407,32 @@ function PartnerCompanyRow({
               <X className="h-4 w-4" /> Reject
             </Button>
           )}
+          {company.status === "approved" &&
+            company.subscriptionStatus !== "active" && (
+              <Button
+                size="sm"
+                className="w-full md:w-auto"
+                disabled={!!busy || publishListing.isPending}
+                onClick={() => {
+                  setBusy("publishListing");
+                  publishListing.mutate(company, {
+                    onSuccess: () =>
+                      toast.success(
+                        `${company.name} is now on the public partners page.`,
+                      ),
+                    onError: (err) => toast.error((err as Error).message),
+                    onSettled: () => setBusy(null),
+                  });
+                }}
+              >
+                {busy === "publishListing" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Store className="h-4 w-4" />
+                )}
+                Publish to directory
+              </Button>
+            )}
           <Button
             size="sm"
             variant="outline"
@@ -2738,20 +2793,6 @@ function PropertyThumb({
 // Orders / delivery fulfilment
 // ---------------------------------------------------------------------------
 
-interface OrderGroup {
-  groupId: string;
-  orders: Order[];
-  buyerName: string;
-  phone: string;
-  address: string;
-  paymentRef: string;
-  createdAt: string;
-  subtotal: number;
-  deliveryFee: number;
-  total: number;
-  status: string;
-}
-
 const orderStatusVariant: Record<
   string,
   "success" | "warning" | "destructive" | "secondary" | "outline"
@@ -2773,43 +2814,14 @@ const orderStatusLabel: Record<string, string> = {
   mixed: "Mixed",
 };
 
-function groupOrders(orders: Order[]): OrderGroup[] {
-  const map = new Map<string, Order[]>();
-  for (const order of orders) {
-    const key = order.orderGroupId || order.$id;
-    const list = map.get(key) ?? [];
-    list.push(order);
-    map.set(key, list);
-  }
-
-  const groups: OrderGroup[] = [];
-  for (const [groupId, list] of map.entries()) {
-    const first =
-      [...list].sort((a, b) => (a.$createdAt < b.$createdAt ? -1 : 1))[0];
-    const statuses = new Set(list.map((o) => String(o.status)));
-    groups.push({
-      groupId,
-      orders: list,
-      buyerName: first.buyerName || "Homiva customer",
-      phone: first.phone || "",
-      address: first.secureAddress || first.address || "",
-      paymentRef: first.paymentRef || "",
-      createdAt: first.$createdAt,
-      subtotal: list.reduce((sum, o) => sum + (o.subtotal ?? 0), 0),
-      deliveryFee: list.reduce((sum, o) => sum + (o.deliveryFee ?? 0), 0),
-      total: list.reduce((sum, o) => sum + (o.amount ?? 0), 0),
-      status: statuses.size === 1 ? [...statuses][0] : "mixed",
-    });
-  }
-  return groups.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-}
-
 function OrdersPanel({
   orders,
   isLoading,
+  focusGroupId,
 }: {
   orders?: Order[];
   isLoading: boolean;
+  focusGroupId?: string;
 }) {
   const [filter, setFilter] = useState<
     "all" | "paid" | "shipped" | "delivered" | "cancelled"
@@ -2834,7 +2846,9 @@ function OrdersPanel({
 
   const groups = groupOrders(all);
   const countFor = (status: string) =>
-    groups.filter((g) => g.status === status).length;
+    status === "paid"
+      ? groups.filter(groupNeedsDelivery).length
+      : groups.filter((g) => g.status === status).length;
   const filters = [
     { key: "all" as const, label: "All", count: groups.length },
     { key: "paid" as const, label: "To deliver", count: countFor("paid") },
@@ -2843,7 +2857,11 @@ function OrdersPanel({
     { key: "cancelled" as const, label: "Cancelled", count: countFor("cancelled") },
   ];
   const filtered =
-    filter === "all" ? groups : groups.filter((g) => g.status === filter);
+    filter === "all"
+      ? groups
+      : filter === "paid"
+        ? groups.filter(groupNeedsDelivery)
+        : groups.filter((g) => g.status === filter);
 
   return (
     <div className="space-y-4">
@@ -2878,6 +2896,7 @@ function OrdersPanel({
               key={group.groupId}
               group={group}
               productMap={productMap}
+              focused={focusGroupId === group.groupId}
             />
           ))}
         </div>
@@ -2986,9 +3005,11 @@ function OrderItemRow({
 function OrderGroupCard({
   group,
   productMap,
+  focused,
 }: {
   group: OrderGroup;
   productMap?: Record<string, Product>;
+  focused?: boolean;
 }) {
   const update = useAdminUpdateOrderStatus();
   const [busy, setBusy] = useState<string | null>(null);
@@ -3006,6 +3027,7 @@ function OrderGroupCard({
       {
         orderIds,
         status,
+        groupId: group.groupId,
         summary: `Order #${shortId} for ${group.buyerName} marked ${status}.`,
       },
       {
@@ -3044,7 +3066,12 @@ function OrderGroupCard({
   };
 
   return (
-    <Card className="overflow-hidden">
+    <Card
+      className={cn(
+        "overflow-hidden",
+        focused && "ring-2 ring-primary/50",
+      )}
+    >
       <CardContent className="p-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/30 p-4">
           <div className="flex items-center gap-3">

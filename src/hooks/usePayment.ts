@@ -3,6 +3,10 @@ import { functions } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import {
+  clearPendingPayment,
+  savePendingPayment,
+} from "@/lib/pendingPayment";
+import {
   newReference,
   openPaystackCheckout,
 } from "@/lib/paystack";
@@ -61,14 +65,51 @@ export function usePayment() {
       const email = profile?.email ?? user.email;
       const reference = newReference();
 
-      await openPaystackCheckout({
-        email,
-        amountKES,
-        reference,
-        metadata: { purpose, ...metadata },
-      });
+      // Persist before the iframe opens so a successful charge can still be
+      // verified if the popup close event races the success callback.
+      savePendingPayment({ reference, purpose, metadata });
 
-      return verifyPayment({ reference, purpose, metadata });
+      let checkoutError: unknown = null;
+      try {
+        await openPaystackCheckout({
+          email,
+          amountKES,
+          reference,
+          metadata: { purpose, ...metadata },
+        });
+      } catch (error) {
+        checkoutError = error;
+      }
+
+      try {
+        const result = await verifyPayment({ reference, purpose, metadata });
+        clearPendingPayment();
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/not successful|abandoned|cancelled/i.test(message)) {
+          clearPendingPayment();
+        }
+        if (checkoutError && /not successful|abandoned/i.test(message)) {
+          throw checkoutError;
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/** Finish a Paystack charge that already succeeded if the first verify dropped. */
+export function useVerifyExistingPayment() {
+  return useMutation({
+    mutationFn: async (payload: {
+      reference: string;
+      purpose: PaymentPurpose;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const result = await verifyPayment(payload);
+      clearPendingPayment();
+      return result;
     },
   });
 }

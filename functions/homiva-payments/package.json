@@ -5,7 +5,8 @@
   "type": "module",
   "main": "src/main.js",
   "scripts": {
-    "start": "node src/main.js"
+    "start": "node src/main.js",
+    "test": "node --test src/subscription.test.js"
   },
   "dependencies": {
     "node-appwrite": "^27.0.0"
