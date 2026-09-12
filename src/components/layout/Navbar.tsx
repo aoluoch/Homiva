@@ -37,6 +37,7 @@ import { APPLICABLE_ROLES, TEAMS, appwriteConfig } from "@/lib/config";
 import { filePreview } from "@/lib/appwrite";
 import { useUnreadCount } from "@/hooks/useNotifications";
 import { useCart } from "@/context/CartContext";
+import { Logo } from "./Logo";
 
 const propertyNavLinks = [
   { to: "/properties?type=sale", label: "Buy", type: "sale" },
@@ -93,13 +94,7 @@ export function Navbar() {
     <header className="sticky top-0 z-40 w-full border-b bg-background/[0.92] shadow-[0_1px_0_hsl(var(--border))] backdrop-blur supports-[backdrop-filter]:bg-background/[0.86]">
       <div className="container flex h-16 items-center justify-between gap-4">
         <div className="flex items-center gap-8">
-          <Link
-            to="/"
-            className="text-2xl font-black tracking-tight text-foreground"
-            aria-label="Homiva home"
-          >
-            Homiva
-          </Link>
+          <Logo size="nav" />
           <nav className="hidden items-center gap-1 md:flex">
             {propertyNavLinks.map((link) => (
               <Link
