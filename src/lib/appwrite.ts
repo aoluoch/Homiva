@@ -68,11 +68,7 @@ export function hasStoredAppwriteSession(): boolean {
 export function formatAppwriteError(err: unknown, fallback = "Request failed."): string {
   const message = err instanceof Error ? err.message : String(err ?? fallback);
   if (/failed to fetch|networkerror|load failed/i.test(message)) {
-    return (
-      "Could not reach Appwrite (network/CORS). Confirm VITE_APPWRITE_ENDPOINT " +
-      "matches your project region and that this site's hostname is registered " +
-      "as a Web platform in the Appwrite console."
-    );
+    return "Could not reach Homiva. Check your connection and try again.";
   }
   return message || fallback;
 }

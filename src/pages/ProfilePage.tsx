@@ -40,6 +40,7 @@ import {
   ROLE_DOCUMENT_REQUIREMENTS,
   TEAMS,
 } from "@/lib/config";
+import { formatAppwriteError } from "@/lib/appwrite";
 import { initials } from "@/lib/utils";
 import { VerificationDocumentLink } from "@/components/VerificationDocumentLink";
 import {
@@ -123,7 +124,7 @@ export default function ProfilePage() {
           setContactDetails((details) => ({ ...details, [role]: {} }));
           setDocumentFiles((files) => ({ ...files, [role]: {} }));
         },
-        onError: (err) => toast.error((err as Error).message),
+        onError: (err) => toast.error(formatAppwriteError(err)),
       },
     );
   };
@@ -399,7 +400,7 @@ export default function ProfilePage() {
                             <input
                               id={inputId}
                               type="file"
-                              accept="application/pdf,image/jpeg,image/png,image/webp"
+                              accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,.pdf,.jpg,.jpeg,.jfif,.png,.webp"
                               className="hidden"
                               onChange={(event) => {
                                 const file = event.target.files?.[0];
