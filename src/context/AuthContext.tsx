@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { Permission, Role, type Models } from "appwrite";
-import { account, ID, Query, tablesDB, teams } from "@/lib/appwrite";
+import { account, hasStoredAppwriteSession, ID, Query, tablesDB, teams } from "@/lib/appwrite";
 import { appwriteConfig, TABLES, TEAMS } from "@/lib/config";
 import type { Profile } from "@/types/models";
 
@@ -88,6 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
+      if (!hasStoredAppwriteSession()) {
+        setUser(null);
+        setProfile(null);
+        setRoles([]);
+        return;
+      }
       const current = await account.get();
       setUser(current);
       await Promise.all([loadRoles(), ensureProfile(current)]);

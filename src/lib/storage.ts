@@ -1,5 +1,5 @@
 import { ID, Permission, Role } from "appwrite";
-import { account, functions, storage } from "@/lib/appwrite";
+import { account, functions, hasStoredAppwriteSession, storage } from "@/lib/appwrite";
 import { appwriteConfig } from "@/lib/config";
 
 /**
@@ -28,6 +28,7 @@ export async function compressStoredImage(
  */
 async function defaultUploadPermissions(): Promise<string[]> {
   const permissions = [Permission.read(Role.any())];
+  if (!hasStoredAppwriteSession()) return permissions;
   try {
     const me = await account.get();
     permissions.push(

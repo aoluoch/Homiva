@@ -23,6 +23,45 @@ export const functions = new Functions(client);
 export { ID, Query };
 
 /**
+ * True when the Appwrite Web SDK already has a session locally.
+ * Guest visits must not call `account.get()` — Cloud answers 401 and the
+ * browser logs it even when the app treats that as "signed out".
+ */
+export function hasStoredAppwriteSession(): boolean {
+  if (typeof window === "undefined") return false;
+
+  // Same-origin custom domains keep the session in an HttpOnly cookie the
+  // page cannot read, so the only way to know is to ask Appwrite.
+  try {
+    if (new URL(appwriteConfig.endpoint).origin === window.location.origin) {
+      return true;
+    }
+  } catch {
+    /* fall through to stored-session checks */
+  }
+
+  const sessionKey = `a_session_${appwriteConfig.projectId}`;
+
+  try {
+    const hasCookie = document.cookie
+      .split(";")
+      .some((part) => part.trim().startsWith(`${sessionKey}=`));
+    if (hasCookie) return true;
+  } catch {
+    /* ignore restricted cookie access */
+  }
+
+  try {
+    const raw = window.localStorage.getItem("cookieFallback");
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return typeof parsed[sessionKey] === "string" && parsed[sessionKey].length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Turn opaque browser network failures into an actionable message.
  * Unregistered Appwrite web platforms surface as TypeError "Failed to fetch".
  */
