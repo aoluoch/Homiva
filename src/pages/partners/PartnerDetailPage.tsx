@@ -1,6 +1,7 @@
-import { useParams } from "react-router-dom";
-import { BadgeCheck, BriefcaseBusiness, Mail, MapPin, Phone } from "lucide-react";
+import { Link, useLocation, useParams } from "react-router-dom";
+import { ArrowLeft, BadgeCheck, BriefcaseBusiness, Mail, MapPin, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReviewSection } from "@/components/reviews/ReviewSection";
@@ -13,14 +14,41 @@ function asset(fileId?: string, width = 400, height = 300) {
   return filePreview(appwriteConfig.buckets.storeAssets, fileId, { width, height });
 }
 
+function partnersListPath(state: unknown) {
+  const from = (state as { from?: unknown } | null)?.from;
+  if (typeof from !== "string") return "/partners";
+  try {
+    const url = new URL(from, "http://local");
+    if (url.pathname === "/partners") {
+      return `${url.pathname}${url.search}`;
+    }
+  } catch {
+    /* ignore malformed state */
+  }
+  return "/partners";
+}
+
+function BackToPartners({ to }: { to: string }) {
+  return (
+    <Button asChild variant="ghost" size="sm" className="mb-4">
+      <Link to={to}>
+        <ArrowLeft className="h-4 w-4" /> Back to partners
+      </Link>
+    </Button>
+  );
+}
+
 export default function PartnerDetailPage() {
   const { id } = useParams();
+  const { state } = useLocation();
+  const backTo = partnersListPath(state);
   const { data: company, isLoading } = usePartnerCompany(id);
   const { data: portfolio } = usePartnerPortfolio(company?.$id);
 
   if (isLoading) {
     return (
       <div className="container py-8">
+        <BackToPartners to={backTo} />
         <Skeleton className="h-56 w-full rounded-xl" />
       </div>
     );
@@ -29,6 +57,7 @@ export default function PartnerDetailPage() {
   if (!company || company.status !== "approved" || company.subscriptionStatus !== "active") {
     return (
       <div className="container py-16">
+        <BackToPartners to={backTo} />
         <EmptyState
           icon={BriefcaseBusiness}
           title="Partner profile unavailable"
@@ -43,6 +72,7 @@ export default function PartnerDetailPage() {
 
   return (
     <div className="container py-8">
+      <BackToPartners to={backTo} />
       <div className="overflow-hidden rounded-2xl border bg-card">
         <div className="h-40 bg-secondary md:h-56">
           {banner && <img src={banner} alt="" className="h-full w-full object-cover" />}

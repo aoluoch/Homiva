@@ -75,7 +75,11 @@ export default function PartnersPage() {
           {data.map((company) => {
             const logo = logoUrl(company.logoFileId);
             return (
-              <Link key={company.$id} to={`/partners/${company.$id}`}>
+              <Link
+                key={company.$id}
+                to={`/partners/${company.$id}`}
+                state={{ from: `/partners${category ? `?category=${category}` : ""}` }}
+              >
                 <Card className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <CardContent className="flex gap-4 p-5">
                     <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-primary/10 text-primary">
