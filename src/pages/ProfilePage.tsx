@@ -38,7 +38,6 @@ import {
   APPLICABLE_ROLES,
   KENYA_COUNTIES,
   ROLE_DOCUMENT_REQUIREMENTS,
-  TEAMS,
 } from "@/lib/config";
 import { formatAppwriteError } from "@/lib/appwrite";
 import { initials } from "@/lib/utils";
@@ -152,10 +151,9 @@ export default function ProfilePage() {
     };
   };
 
-  const activeRoleLabels = [
-    ...(isAdmin ? ["Administrator"] : []),
-    ...APPLICABLE_ROLES.filter((r) => roles.includes(r.team)).map((r) => r.label),
-  ];
+  const activeRoleLabels = isAdmin
+    ? ["Administrator"]
+    : APPLICABLE_ROLES.filter((r) => roles.includes(r.team)).map((r) => r.label);
 
   return (
     <div className="container max-w-4xl py-6 sm:py-8">
@@ -184,6 +182,8 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
+      {!isAdmin && (
+        <>
       {/* Role applications */}
       <div className="mb-4 flex items-center gap-2">
         <ShieldCheck className="h-5 w-5 text-primary" />
@@ -504,7 +504,10 @@ export default function ProfilePage() {
         </>
       )}
 
-      {roles.includes(TEAMS.admins) && (
+        </>
+      )}
+
+      {isAdmin && (
         <p className="mt-8 text-center text-sm text-muted-foreground">
           You have administrator access.{" "}
           <a href="/admin" className="font-medium text-primary hover:underline">

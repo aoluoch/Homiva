@@ -181,9 +181,9 @@ async function deleteApplicationDocuments(documentIds: string[]) {
 
 /** Applications submitted by the current user. */
 export function useMyApplications() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   return useQuery({
-    enabled: !!user,
+    enabled: !!user && !isAdmin,
     queryKey: ["my-applications", user?.$id],
     queryFn: async () => {
       const res = await tablesDB.listRows({

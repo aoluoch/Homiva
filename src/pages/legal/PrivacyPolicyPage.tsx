@@ -152,8 +152,9 @@ export default function PrivacyPolicyPage() {
             Their privacy policy applies to card and mobile-money handling.
           </li>
           <li>
-            <strong>Maps.</strong> Location pins may be shown with OpenStreetMap
-            / MapLibre so you or Homiva can get directions.
+            <strong>Maps.</strong> Location pins are shown with MapLibre and
+            OpenStreetMap data (OpenFreeMap styles) so you or Homiva can get
+            directions. No map-provider API key is collected.
           </li>
         </ul>
         <p>

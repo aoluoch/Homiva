@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 export function Footer() {
+  const { isAdmin } = useAuth();
+
   return (
     <footer className="mt-10 border-t bg-secondary/40 sm:mt-16">
       <div className="container grid gap-8 py-10 sm:grid-cols-2 sm:py-12 lg:grid-cols-5">
@@ -44,7 +47,7 @@ export function Footer() {
         <FooterCol
           title="Account"
           links={[
-            { to: "/profile", label: "Profile & roles" },
+            { to: "/profile", label: isAdmin ? "Profile" : "Profile & roles" },
             { to: "/saved", label: "Saved properties" },
             { to: "/dashboard", label: "List a property" },
           ]}

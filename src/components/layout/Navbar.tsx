@@ -197,7 +197,7 @@ export function Navbar() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate("/profile")}>
-                    <UserIcon /> Profile &amp; Roles
+                    <UserIcon /> {isAdmin ? "Profile" : "Profile & Roles"}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/saved")}>
                     <Heart /> Saved
@@ -331,7 +331,7 @@ export function Navbar() {
                   className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
                 >
                   <UserIcon className="mr-2 inline h-4 w-4" />
-                  Profile &amp; Roles
+                  {isAdmin ? "Profile" : "Profile & Roles"}
                 </Link>
                 {canManageListings && (
                   <Link

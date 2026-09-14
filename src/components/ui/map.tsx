@@ -3,18 +3,23 @@ import { createPortal } from "react-dom";
 import * as MapLibreGL from "maplibre-gl";
 import type { MapOptions, MarkerOptions, PopupOptions } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { Loader2, Locate, Maximize, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+if (typeof window !== "undefined" && !MapLibreGL.getWorkerUrl()) {
+  MapLibreGL.setWorkerUrl(maplibreWorkerUrl);
+}
+
+/**
+ * Keyless OpenStreetMap vector styles from OpenFreeMap, as documented by mapcn:
+ * https://www.mapcn.dev/docs/basic-map
+ *
+ * Carto's public basemaps now overlay "API KEY REQUIRED", so they are not used.
+ */
 const defaultStyles = {
-  light: rasterStyle(
-    "carto-light",
-    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-  ),
-  dark: rasterStyle(
-    "carto-dark",
-    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-  ),
+  light: "https://tiles.openfreemap.org/styles/bright",
+  dark: "https://tiles.openfreemap.org/styles/dark",
 };
 
 export type MapViewport = {
@@ -33,22 +38,6 @@ type MapContextValue = {
 
 const MapContext = React.createContext<MapContextValue | null>(null);
 
-function rasterStyle(id: string, tileUrl: string): MapLibreGL.StyleSpecification {
-  return {
-    version: 8,
-    sources: {
-      [id]: {
-        type: "raster",
-        tiles: [tileUrl],
-        tileSize: 256,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      },
-    },
-    layers: [{ id, type: "raster", source: id }],
-  };
-}
-
 export function useMap() {
   const context = React.useContext(MapContext);
   if (!context) throw new Error("useMap must be used within a Map component");
@@ -64,10 +53,7 @@ function getDocumentTheme(): Theme | null {
 }
 
 function getSystemTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return "light";
 }
 
 function useResolvedTheme(theme?: Theme) {
@@ -85,15 +71,8 @@ function useResolvedTheme(theme?: Theme) {
       attributeFilter: ["class", "data-theme"],
     });
 
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const onSystemChange = (event: MediaQueryListEvent) => {
-      if (!getDocumentTheme()) setDetectedTheme(event.matches ? "dark" : "light");
-    };
-    mediaQuery.addEventListener("change", onSystemChange);
-
     return () => {
       observer.disconnect();
-      mediaQuery.removeEventListener("change", onSystemChange);
     };
   }, [theme]);
 
