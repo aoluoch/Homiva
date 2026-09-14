@@ -80,13 +80,23 @@
   * {
     @apply border-border;
   }
+  html {
+    @apply overflow-x-clip;
+  }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply overflow-x-clip bg-background text-foreground antialiased;
+    overflow-wrap: break-word;
     font-feature-settings: "rlig" 1, "calt" 1;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
     background-image:
       linear-gradient(90deg, hsl(var(--border) / 0.22) 1px, transparent 1px),
       linear-gradient(180deg, hsl(var(--border) / 0.18) 1px, transparent 1px);
     background-size: 48px 48px;
+  }
+  img,
+  video {
+    max-width: 100%;
   }
   h1, h2, h3, h4 {
     @apply font-semibold tracking-tight;
@@ -130,10 +140,16 @@
       hsl(var(--background));
   }
   .auth-panel {
-    @apply p-6 md:p-8;
+    @apply p-5 sm:p-6 md:p-8;
   }
   .auth-story-panel {
-    @apply p-8;
+    @apply p-6 sm:p-8;
     box-shadow: -12px 12px 0 hsl(var(--accent) / 0.12);
+  }
+  .page-heading {
+    @apply text-2xl font-bold tracking-tight sm:text-3xl;
+  }
+  .page-shell {
+    @apply container py-6 sm:py-8;
   }
 }

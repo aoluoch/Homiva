@@ -77,7 +77,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="container max-w-6xl py-8">
+    <div className="container max-w-6xl py-6 sm:py-8">
       <button
         onClick={() => navigate(-1)}
         className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -87,7 +87,7 @@ export default function CartPage() {
 
       <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-3xl font-bold">Shopping cart</h1>
+          <h1 className="page-heading">Shopping cart</h1>
           <p className="text-muted-foreground">
             Buy furniture, appliances and home goods in one checkout.
           </p>

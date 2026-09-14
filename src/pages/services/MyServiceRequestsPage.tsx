@@ -56,10 +56,10 @@ export default function MyServiceRequestsPage() {
   };
 
   return (
-    <div className="container max-w-4xl py-8">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="container max-w-4xl py-6 sm:py-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">My Service Requests</h1>
+          <h1 className="page-heading">My Service Requests</h1>
           <p className="text-muted-foreground">
             Track your maintenance and cleaning jobs.
           </p>

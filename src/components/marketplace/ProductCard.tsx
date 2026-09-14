@@ -27,7 +27,7 @@ export function ProductCard({ product }: { product: Product }) {
   const { addProduct } = useCart();
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-md border bg-card shadow-sm transition-all hover:shadow-md">
+    <div className="group flex min-w-0 flex-col overflow-hidden rounded-md border bg-card shadow-sm transition-all hover:shadow-md">
       <Link to={`/marketplace/${product.$id}`} className="block">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           <img

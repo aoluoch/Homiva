@@ -24,8 +24,8 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="container grid gap-8 py-8 md:grid-cols-2">
-        <Skeleton className="aspect-square w-full rounded-xl" />
+      <div className="container grid gap-8 py-6 sm:py-8 md:grid-cols-2">
+        <Skeleton className="aspect-[4/3] w-full rounded-xl md:aspect-square" />
         <div className="space-y-4">
           <Skeleton className="h-8 w-3/4" />
           <Skeleton className="h-6 w-1/3" />
@@ -65,7 +65,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="container py-8">
+    <div className="container py-6 sm:py-8">
       <button
         onClick={() => navigate(-1)}
         className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -73,9 +73,9 @@ export default function ProductDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
-      <div className="grid gap-8 md:grid-cols-2">
-        <div>
-          <div className="aspect-square overflow-hidden rounded-xl border bg-muted">
+      <div className="grid min-w-0 gap-8 md:grid-cols-2">
+        <div className="min-w-0">
+          <div className="aspect-[4/3] overflow-hidden rounded-xl border bg-muted md:aspect-square">
             <img
               src={images[active] ? imgUrl(images[active]) : PRODUCT_PLACEHOLDER}
               alt={product.title}
@@ -109,7 +109,7 @@ export default function ProductDetailPage() {
             {product.condition}
           </Badge>
           <h1 className="text-2xl font-bold md:text-3xl">{product.title}</h1>
-          <p className="mt-2 text-3xl font-bold text-primary">
+          <p className="mt-2 text-2xl font-bold text-primary sm:text-3xl">
             {formatKES(product.price)}
           </p>
 

@@ -30,9 +30,9 @@ export default function ServicesPage() {
   const { user } = useAuth();
 
   return (
-    <div className="container py-8">
-      <section className="mb-10 rounded-2xl bg-gradient-to-br from-primary/10 via-secondary to-background p-8 md:p-12">
-        <h1 className="max-w-2xl text-3xl font-bold md:text-4xl">
+    <div className="page-shell">
+      <section className="mb-10 rounded-2xl bg-gradient-to-br from-primary/10 via-secondary to-background p-5 sm:p-8 md:p-12">
+        <h1 className="max-w-2xl text-2xl font-bold sm:text-3xl md:text-4xl">
           Home services you can trust, on demand
         </h1>
         <p className="mt-3 max-w-xl text-muted-foreground">

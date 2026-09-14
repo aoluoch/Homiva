@@ -152,7 +152,7 @@ export default function ServiceRequestPage() {
   };
 
   return (
-    <div className="container max-w-3xl py-8">
+    <div className="container max-w-3xl py-6 sm:py-8">
       <button
         onClick={() => navigate("/services")}
         className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -186,7 +186,7 @@ export default function ServiceRequestPage() {
         ))}
       </div>
 
-      <div className="rounded-xl border bg-card p-6 shadow-sm">
+      <div className="rounded-xl border bg-card p-4 shadow-sm sm:p-6">
         <h2 className="mb-1 text-xl font-bold">{STEPS[step]}</h2>
 
         {/* Step 0: Service */}
@@ -401,7 +401,7 @@ export default function ServiceRequestPage() {
             {estimate && (
               <div className="mb-6 rounded-xl border bg-primary/5 p-5 text-center">
                 <p className="text-sm text-muted-foreground">Estimated price</p>
-                <p className="text-3xl font-bold text-primary">
+                <p className="text-2xl font-bold text-primary sm:text-3xl">
                   {formatKES(estimate.min)} - {formatKES(estimate.max)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -409,7 +409,7 @@ export default function ServiceRequestPage() {
                 </p>
               </div>
             )}
-            <dl className="mb-6 grid grid-cols-2 gap-3 text-sm">
+            <dl className="mb-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <Detail label="Service" value={activeCategory?.label} />
               <Detail label="Property" value={propertyType} />
               <Detail

@@ -47,7 +47,7 @@ export default function PartnerDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="container py-8">
+      <div className="container py-6 sm:py-8">
         <BackToPartners to={backTo} />
         <Skeleton className="h-56 w-full rounded-xl" />
       </div>
@@ -71,13 +71,13 @@ export default function PartnerDetailPage() {
   const logo = asset(company.logoFileId, 180, 180);
 
   return (
-    <div className="container py-8">
+    <div className="container py-6 sm:py-8">
       <BackToPartners to={backTo} />
       <div className="overflow-hidden rounded-2xl border bg-card">
         <div className="h-40 bg-secondary md:h-56">
           {banner && <img src={banner} alt="" className="h-full w-full object-cover" />}
         </div>
-        <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-end sm:p-6">
           <div className="-mt-16 grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl border-4 border-background bg-primary/10 text-primary">
             {logo ? (
               <img src={logo} alt="" className="h-full w-full object-cover" />

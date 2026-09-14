@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollableTabs } from "@/components/ui/scrollable-tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -330,10 +331,10 @@ export default function AdminDashboardPage() {
       </div>
 
       <Tabs key={initialTab} defaultValue={initialTab}>
-        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+        <ScrollableTabs sticky>
           <TabsList className="h-auto min-w-max justify-start gap-1 rounded-md">
             <TabsTrigger value="overview" className="h-9">
-              <BarChart3 className="mr-1 h-4 w-4" />
+              <BarChart3 className="mr-1 hidden h-4 w-4 sm:block" />
               Overview
             </TabsTrigger>
             <TabsTrigger value="applications" className="h-9">
@@ -353,7 +354,7 @@ export default function AdminDashboardPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="inquiries" className="h-9">
-              <Inbox className="mr-1 h-4 w-4" />
+              <Inbox className="mr-1 hidden h-4 w-4 sm:block" />
               Inquiries
               {openInquiries.length > 0 && (
                 <Badge variant="accent" className="ml-2">
@@ -362,7 +363,7 @@ export default function AdminDashboardPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="viewings" className="h-9">
-              <CalendarClock className="mr-1 h-4 w-4" />
+              <CalendarClock className="mr-1 hidden h-4 w-4 sm:block" />
               Viewings
               {openViewings.length > 0 && (
                 <Badge variant="accent" className="ml-2">
@@ -371,7 +372,7 @@ export default function AdminDashboardPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="mortgage" className="h-9">
-              <Calculator className="mr-1 h-4 w-4" />
+              <Calculator className="mr-1 hidden h-4 w-4 sm:block" />
               Mortgage
               {newMortgages.length > 0 && (
                 <Badge variant="accent" className="ml-2">
@@ -396,7 +397,7 @@ export default function AdminDashboardPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="orders" className="h-9">
-              <ShoppingCart className="mr-1 h-4 w-4" />
+              <ShoppingCart className="mr-1 hidden h-4 w-4 sm:block" />
               Orders
               {ordersToFulfil.length > 0 && (
                 <Badge variant="accent" className="ml-2">
@@ -405,7 +406,7 @@ export default function AdminDashboardPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="bookings" className="h-9">
-              <CalendarCheck className="mr-1 h-4 w-4" />
+              <CalendarCheck className="mr-1 hidden h-4 w-4 sm:block" />
               Airbnb bookings
               {confirmedBookings.length > 0 && (
                 <Badge variant="accent" className="ml-2">
@@ -414,7 +415,7 @@ export default function AdminDashboardPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="marketplace-settings" className="h-9">
-              <Settings className="mr-1 h-4 w-4" />
+              <Settings className="mr-1 hidden h-4 w-4 sm:block" />
               Marketplace
             </TabsTrigger>
             <TabsTrigger value="services" className="h-9">
@@ -432,7 +433,7 @@ export default function AdminDashboardPage() {
               Users
             </TabsTrigger>
           </TabsList>
-        </div>
+        </ScrollableTabs>
 
         <TabsContent value="overview" className="mt-6">
           {loadingStats ? (
@@ -453,7 +454,7 @@ export default function AdminDashboardPage() {
             <LoadingRows />
           ) : (
             <Tabs defaultValue="property">
-              <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:px-0">
+              <ScrollableTabs>
                 <TabsList className="h-auto min-w-max justify-start gap-1">
                   {APPLICATION_GROUPS.map((group) => (
                     <TabsTrigger key={group.key} value={group.key} className="h-9">
@@ -466,7 +467,7 @@ export default function AdminDashboardPage() {
                     </TabsTrigger>
                   ))}
                 </TabsList>
-              </div>
+              </ScrollableTabs>
               {APPLICATION_GROUPS.map((group) => (
                 <TabsContent key={group.key} value={group.key} className="mt-1">
                   <ApplicationGroupQueue
@@ -924,7 +925,7 @@ function ApplicationRow({
           )}
           {application.latitude && application.longitude ? (
             <PropertyMapPreview
-              className="mt-3 h-56 w-full sm:h-64"
+              className="mt-3 h-44 w-full sm:h-56"
               latitude={application.latitude}
               longitude={application.longitude}
               label={applicationLocation || application.userName}
@@ -1615,7 +1616,7 @@ function AdminMarketplaceSettings() {
 
   return (
     <Card>
-      <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_320px] md:items-end">
+      <CardContent className="grid gap-5 p-4 sm:p-5 lg:grid-cols-[1fr_320px] lg:items-end">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">Marketplace checkout</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -2649,7 +2650,7 @@ function AdminBookingCard({
         </div>
         </div>
         <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
-          <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogContent className="max-h-[min(90dvh,40rem)] max-w-3xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="break-words pr-6">
                 {booking.propertyTitle}
@@ -2958,7 +2959,7 @@ function OrderItemRow({
               </span>
             </button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogContent className="max-h-[min(90dvh,40rem)] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="break-words pr-6">
                 {order.productTitle}
@@ -3403,7 +3404,7 @@ function ProductEditDialog({ product }: { product: Product }) {
           Edit
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit marketplace product</DialogTitle>
         </DialogHeader>
@@ -3502,7 +3503,7 @@ function AdminProductDialog() {
           <Plus className="h-4 w-4" /> Add Homiva product
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[min(90dvh,40rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Homiva marketplace product</DialogTitle>
         </DialogHeader>

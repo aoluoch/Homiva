@@ -23,8 +23,8 @@ export default function OrdersPage() {
   const { data, isLoading } = useMyOrders();
 
   return (
-    <div className="container max-w-3xl py-8">
-      <h1 className="mb-6 text-3xl font-bold">My Orders</h1>
+    <div className="container max-w-3xl py-6 sm:py-8">
+      <h1 className="page-heading mb-6">My Orders</h1>
       {isLoading ? (
         <div className="space-y-3">
           {[0, 1].map((i) => (

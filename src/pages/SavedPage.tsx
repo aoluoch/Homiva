@@ -39,8 +39,8 @@ export default function SavedPage() {
   const busy = loadingFavs || isLoading;
 
   return (
-    <div className="container py-8">
-      <h1 className="mb-2 text-3xl font-bold">Saved properties</h1>
+    <div className="page-shell">
+      <h1 className="page-heading mb-2">Saved properties</h1>
       <p className="mb-8 text-muted-foreground">
         Properties you've bookmarked for later
       </p>

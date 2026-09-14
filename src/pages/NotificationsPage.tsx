@@ -18,9 +18,9 @@ export default function NotificationsPage() {
   const unreadIds = (data ?? []).filter((n) => !n.read).map((n) => n.$id);
 
   return (
-    <div className="container max-w-2xl py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Notifications</h1>
+    <div className="container max-w-2xl py-6 sm:py-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="page-heading">Notifications</h1>
         {unreadIds.length > 0 && (
           <Button
             variant="outline"

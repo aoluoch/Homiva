@@ -45,7 +45,7 @@ export function PropertyCard({ property }: { property: Property }) {
   return (
     <Link
       to={`/properties/${property.$id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:shadow-md"
+      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:shadow-md"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         <img

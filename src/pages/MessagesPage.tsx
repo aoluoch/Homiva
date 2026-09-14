@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { MessagesSquare, Send } from "lucide-react";
+import { ChevronLeft, MessagesSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +20,7 @@ export default function MessagesPage() {
   const { data: threads } = useThreads();
   const activeThread = params.get("t") ?? "";
   const to = params.get("to") ?? "";
+  const showThread = Boolean(activeThread || to);
 
   const { data: messages } = useThreadMessages(activeThread || undefined);
   const send = useSendMessage();
@@ -56,12 +57,20 @@ export default function MessagesPage() {
     );
   };
 
+  const closeThread = () => {
+    setParams({}, { replace: true });
+  };
+
   return (
-    <div className="container py-8">
-      <h1 className="mb-6 text-3xl font-bold">Messages</h1>
-      <div className="grid gap-4 md:grid-cols-[300px_1fr]">
-        {/* Threads list */}
-        <div className="rounded-xl border bg-card">
+    <div className="page-shell">
+      <h1 className="page-heading mb-6">Messages</h1>
+      <div className="grid gap-4 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+        <div
+          className={cn(
+            "rounded-xl border bg-card",
+            showThread && "hidden lg:block",
+          )}
+        >
           {threads && threads.length > 0 ? (
             <div className="divide-y">
               {threads.map((t) => (
@@ -81,7 +90,7 @@ export default function MessagesPage() {
                     <AvatarFallback>{initials(t.otherName)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-medium">
                         {t.otherName}
                       </span>
@@ -105,12 +114,28 @@ export default function MessagesPage() {
           )}
         </div>
 
-        {/* Conversation */}
-        <div className="flex min-h-[60vh] min-w-0 flex-col rounded-xl border bg-card">
-          {activeThread || to ? (
+        <div
+          className={cn(
+            "flex min-h-[min(60vh,32rem)] min-w-0 flex-col rounded-xl border bg-card",
+            !showThread && "hidden lg:flex",
+          )}
+        >
+          {showThread ? (
             <>
-              <div className="border-b p-4 font-medium">
-                {active?.otherName ?? "New conversation"}
+              <div className="flex items-center gap-2 border-b p-3 sm:p-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  onClick={closeThread}
+                  aria-label="Back to conversations"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <p className="min-w-0 truncate font-medium">
+                  {active?.otherName ?? "New conversation"}
+                </p>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {messages?.map((m) => {
@@ -125,7 +150,7 @@ export default function MessagesPage() {
                     >
                       <div
                         className={cn(
-                          "max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2 text-sm",
+                          "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2 text-sm sm:max-w-[75%]",
                           mine
                             ? "bg-primary text-primary-foreground"
                             : "bg-secondary",
@@ -147,9 +172,11 @@ export default function MessagesPage() {
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && submit()}
                   placeholder="Type a message..."
+                  className="min-w-0"
                 />
                 <Button
                   size="icon"
+                  className="shrink-0"
                   onClick={submit}
                   disabled={send.isPending || !text.trim()}
                 >

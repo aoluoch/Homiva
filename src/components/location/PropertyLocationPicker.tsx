@@ -62,8 +62,8 @@ export function PropertyLocationPicker({
   const [error, setError] = React.useState("");
   const mapHeight =
     size === "prominent"
-      ? "h-[min(70vh,520px)] min-h-[380px]"
-      : "h-[340px]";
+      ? "h-52 sm:h-72 md:h-[min(55vh,440px)]"
+      : "h-48 sm:h-[300px] md:h-[340px]";
 
   React.useEffect(() => {
     const parsed = parseCoordinates(latitude, longitude);
@@ -148,10 +148,12 @@ export function PropertyLocationPicker({
               }
             }}
             placeholder="Search estate, road, building or landmark"
+            className="min-w-0"
           />
           <Button
             type="button"
             variant="outline"
+            className="shrink-0"
             onClick={findLocation}
             disabled={searching}
             aria-label="Search location"
@@ -274,7 +276,7 @@ export function PropertyMapPreview({
   return (
     <div
       className={cn(
-        "h-48 overflow-hidden rounded-lg border-2 border-primary/25 bg-muted shadow-sm",
+        "h-44 overflow-hidden rounded-lg border-2 border-primary/25 bg-muted shadow-sm sm:h-48",
         className,
       )}
     >

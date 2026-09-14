@@ -15,7 +15,7 @@ export function LegalDocument({
       <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">
         Homiva
       </p>
-      <h1 className="mt-3 text-3xl font-bold md:text-4xl">{title}</h1>
+      <h1 className="mt-3 text-2xl font-bold sm:text-3xl md:text-4xl">{title}</h1>
       <p className="mt-3 text-muted-foreground">{description}</p>
       <p className="mt-2 text-sm text-muted-foreground">
         Last updated 27 August 2026. These pages describe Homiva as it works

@@ -65,12 +65,12 @@ export default function LoginPage() {
 
   return (
     <div className="auth-shell">
-      <section className="container grid min-h-[calc(100vh-4rem)] items-center gap-10 py-10 lg:grid-cols-[1fr_440px]">
+      <section className="container grid min-h-[calc(100dvh-4rem)] items-center gap-8 py-8 sm:gap-10 sm:py-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
         <div className="hidden max-w-2xl lg:block">
           <p className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">
             Passwordless Homiva
           </p>
-          <h1 className="mt-4 max-w-xl text-5xl font-black leading-[1.02] text-foreground">
+          <h1 className="mt-4 max-w-xl text-3xl font-black leading-[1.02] text-foreground sm:text-4xl lg:text-5xl">
             Walk back into your home desk with one email code.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-8 text-muted-foreground">

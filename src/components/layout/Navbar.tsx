@@ -15,8 +15,9 @@ import {
   MessagesSquare,
   ShoppingBag,
   ShoppingCart,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Avatar,
@@ -53,7 +54,7 @@ const otherNavLinks = [
 
 function navItemClass(active: boolean) {
   return cn(
-    "rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+    "rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:px-3",
     active && "bg-secondary text-secondary-foreground",
   );
 }
@@ -78,6 +79,10 @@ export function Navbar() {
   const { data: unread = 0 } = useUnreadCount();
   const { count: cartCount } = useCart();
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname, location.search]);
+
   const handleLogout = async () => {
     await logout();
     navigate("/");
@@ -92,10 +97,10 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/[0.92] shadow-[0_1px_0_hsl(var(--border))] backdrop-blur supports-[backdrop-filter]:bg-background/[0.86]">
-      <div className="container flex h-16 items-center justify-between gap-4">
-        <div className="flex items-center gap-8">
+      <div className="container flex h-16 min-w-0 items-center justify-between gap-2 sm:gap-4">
+        <div className="flex min-w-0 items-center gap-4 lg:gap-8">
           <Logo size="nav" />
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden items-center gap-0.5 lg:flex xl:gap-1">
             {propertyNavLinks.map((link) => (
               <Link
                 key={link.to}
@@ -239,7 +244,7 @@ export function Navbar() {
               </DropdownMenu>
             </>
           ) : (
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center gap-2 lg:flex">
               <Button asChild variant="ghost">
                 <Link to="/login">Log in</Link>
               </Button>
@@ -252,23 +257,23 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="lg:hidden"
             onClick={() => setMobileOpen((o) => !o)}
-            aria-label="Toggle menu"
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
           >
-            <Menu className="h-5 w-5" />
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
       </div>
 
       {mobileOpen && (
-        <div className="border-t bg-background/95 md:hidden">
+        <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t bg-background/95 lg:hidden">
           <nav className="container flex flex-col gap-1 py-3">
             {propertyNavLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                onClick={() => setMobileOpen(false)}
                 className={navItemClass(onPropertyIndex && listingType === link.type)}
               >
                 {link.label}
@@ -278,7 +283,6 @@ export function Navbar() {
               <Link
                 key={link.to}
                 to={link.to}
-                onClick={() => setMobileOpen(false)}
                 className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
               >
                 {link.label}
@@ -286,7 +290,6 @@ export function Navbar() {
             ))}
             <Link
               to="/cart"
-              onClick={() => setMobileOpen(false)}
               className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
             >
               <ShoppingCart className="mr-2 inline h-4 w-4" />
@@ -294,23 +297,78 @@ export function Navbar() {
             </Link>
             <Link
               to="/properties"
-              onClick={() => setMobileOpen(false)}
               className={navItemClass(allPropertiesActive)}
             >
               <Building2 className="mr-2 inline h-4 w-4" />
               All Properties
             </Link>
+            {!loading && user && (
+              <>
+                <Link
+                  to="/notifications"
+                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                >
+                  <Bell className="mr-2 inline h-4 w-4" />
+                  Notifications
+                  {unread > 0 ? ` (${unread > 9 ? "9+" : unread})` : ""}
+                </Link>
+                <Link
+                  to="/saved"
+                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                >
+                  <Heart className="mr-2 inline h-4 w-4" />
+                  Saved
+                </Link>
+                <Link
+                  to="/messages"
+                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                >
+                  <MessagesSquare className="mr-2 inline h-4 w-4" />
+                  Messages
+                </Link>
+                <Link
+                  to="/profile"
+                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                >
+                  <UserIcon className="mr-2 inline h-4 w-4" />
+                  Profile &amp; Roles
+                </Link>
+                {canManageListings && (
+                  <Link
+                    to="/dashboard"
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                  >
+                    <LayoutDashboard className="mr-2 inline h-4 w-4" />
+                    Owner Dashboard
+                  </Link>
+                )}
+                {isPartner && (
+                  <Link
+                    to="/partner"
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                  >
+                    <Store className="mr-2 inline h-4 w-4" />
+                    Partner Dashboard
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-secondary"
+                  >
+                    <Shield className="mr-2 inline h-4 w-4" />
+                    Admin
+                  </Link>
+                )}
+              </>
+            )}
             {!loading && !user && (
               <div className="mt-2 flex flex-col gap-2">
                 <Button asChild variant="outline">
-                  <Link to="/login" onClick={() => setMobileOpen(false)}>
-                    Log in
-                  </Link>
+                  <Link to="/login">Log in</Link>
                 </Button>
                 <Button asChild variant="accent">
-                  <Link to="/register" onClick={() => setMobileOpen(false)}>
-                    Get started
-                  </Link>
+                  <Link to="/register">Get started</Link>
                 </Button>
               </div>
             )}

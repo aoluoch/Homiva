@@ -15,9 +15,9 @@ export default function HostBookingsPage() {
     0;
 
   return (
-    <div className="container max-w-3xl py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Booking Requests</h1>
+    <div className="container max-w-3xl py-6 sm:py-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="page-heading">Booking Requests</h1>
         {data && data.length > 0 && (
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Total revenue</p>

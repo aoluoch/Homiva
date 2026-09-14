@@ -69,7 +69,7 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-shell">
-      <section className="container grid min-h-[calc(100vh-4rem)] items-center gap-10 py-10 lg:grid-cols-[440px_1fr]">
+      <section className="container grid min-h-[calc(100dvh-4rem)] items-center gap-8 py-8 sm:gap-10 sm:py-10 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
         <div className="auth-panel order-2 lg:order-1">
           <div className="mb-8 flex items-center justify-between gap-4">
             <Link
@@ -228,7 +228,7 @@ export default function RegisterPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-primary">
               One key for the whole home
             </p>
-            <h1 className="mt-4 max-w-xl text-5xl font-black leading-[1.02] text-foreground">
+            <h1 className="mt-4 max-w-xl text-3xl font-black leading-[1.02] text-foreground sm:text-4xl lg:text-5xl">
               Buy, host, book services and manage approved partner profiles from one account.
             </h1>
             <div className="mt-8 grid max-w-2xl gap-3">

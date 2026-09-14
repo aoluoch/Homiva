@@ -159,7 +159,7 @@ export default function PropertyDetailPage() {
         : "";
 
   return (
-    <div className="container py-6">
+    <div className="page-shell">
       <Button asChild variant="ghost" size="sm" className="mb-4">
         <Link to="/properties">
           <ArrowLeft className="h-4 w-4" /> Back to properties
@@ -204,9 +204,9 @@ export default function PropertyDetailPage() {
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge
                   variant={property.listingType === "sale" ? "default" : "accent"}
                 >
@@ -218,14 +218,16 @@ export default function PropertyDetailPage() {
                 </Badge>
                 {property.featured && <Badge variant="warning">Featured</Badge>}
               </div>
-              <h1 className="mt-2 text-3xl font-bold">{property.title}</h1>
-              <p className="mt-1 flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                {property.town}, {property.county}
+              <h1 className="page-heading mt-2 break-words">{property.title}</h1>
+              <p className="mt-1 flex items-start gap-1 text-muted-foreground">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {property.town}, {property.county}
+                </span>
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-3xl font-extrabold text-primary">
+            <div className="sm:text-right">
+              <p className="text-2xl font-extrabold text-primary sm:text-3xl">
                 {formatKES(property.price)}
                 <span className="text-base font-normal text-muted-foreground">
                   {priceSuffix}
@@ -234,7 +236,7 @@ export default function PropertyDetailPage() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-6 rounded-xl border bg-card p-4">
+          <div className="mt-6 flex flex-wrap gap-4 rounded-xl border bg-card p-3 sm:gap-6 sm:p-4">
             <Stat icon={BedDouble} label="Bedrooms" value={property.bedrooms} />
             <Stat icon={Bath} label="Bathrooms" value={property.bathrooms} />
             {property.sizeSqft ? (
@@ -582,7 +584,7 @@ function Stat({
 
 function DetailSkeleton() {
   return (
-    <div className="container py-8">
+    <div className="container py-6 sm:py-8">
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
         <div>
           <Skeleton className="aspect-[16/10] w-full rounded-xl" />

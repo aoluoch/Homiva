@@ -61,10 +61,10 @@ export default function OwnerDashboardPage() {
   };
 
   return (
-    <div className="container py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="page-shell">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Owner dashboard</h1>
+          <h1 className="page-heading">Owner dashboard</h1>
           <p className="text-muted-foreground">
             Manage your property listings
           </p>
@@ -246,7 +246,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <CardContent className="py-6">
-        <p className="text-3xl font-bold">{value}</p>
+        <p className="text-2xl font-bold sm:text-3xl">{value}</p>
         <p className="text-sm text-muted-foreground">{label}</p>
       </CardContent>
     </Card>

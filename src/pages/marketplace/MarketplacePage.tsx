@@ -53,15 +53,16 @@ export default function MarketplacePage() {
   };
 
   return (
-    <div className="container py-8">
+    <div className="page-shell">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Home Marketplace</h1>
+        <h1 className="page-heading">Home Marketplace</h1>
         <p className="text-muted-foreground">
           Furniture, appliances, décor and building materials sold and delivered by Homiva.
         </p>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="-mx-4 mb-6 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <div className="flex min-w-max gap-2">
         <Button
           variant={!category ? "default" : "outline"}
           size="sm"
@@ -79,9 +80,10 @@ export default function MarketplacePage() {
             {c.label}
           </Button>
         ))}
+        </div>
       </div>
 
-      <div className="mb-8 grid gap-3 rounded-xl border bg-card p-4 shadow-sm md:grid-cols-[1fr_180px_180px]">
+      <div className="mb-8 grid gap-3 rounded-xl border bg-card p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

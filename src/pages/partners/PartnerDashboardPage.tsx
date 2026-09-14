@@ -73,9 +73,9 @@ export default function PartnerDashboardPage() {
   }
 
   return (
-    <div className="container max-w-5xl py-8">
+    <div className="container max-w-5xl py-6 sm:py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Partner Dashboard</h1>
+        <h1 className="page-heading">Partner Dashboard</h1>
         <p className="text-muted-foreground">
           Manage your company profile, portfolio and monthly publication plan.
         </p>

@@ -10,8 +10,8 @@ export default function RecentlyViewedPage() {
   const { data: properties, isLoading } = useRecentlyViewed();
 
   return (
-    <div className="container py-8">
-      <h1 className="mb-2 text-3xl font-bold">Recently viewed</h1>
+    <div className="page-shell">
+      <h1 className="page-heading mb-2">Recently viewed</h1>
       <p className="mb-8 text-muted-foreground">
         Pick up where you left off
       </p>

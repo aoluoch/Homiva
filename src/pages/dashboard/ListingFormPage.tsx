@@ -203,14 +203,14 @@ export default function ListingFormPage() {
   const busy = create.isPending || update.isPending;
 
   return (
-    <div className="container max-w-3xl py-8">
+    <div className="container max-w-3xl py-6 sm:py-8">
       <Button asChild variant="ghost" size="sm" className="mb-4">
         <Link to="/dashboard">
           <ArrowLeft className="h-4 w-4" /> Back to dashboard
         </Link>
       </Button>
 
-      <h1 className="mb-6 text-3xl font-bold">
+      <h1 className="page-heading mb-6">
         {isEdit ? "Edit listing" : "Create a listing"}
       </h1>
 
@@ -503,7 +503,7 @@ export default function ListingFormPage() {
                 to users.
               </p>
             )}
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {isEdit &&
                 keptImageIds.map((fileId) => {
                   const isCover = coverImageId

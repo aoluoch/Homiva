@@ -158,7 +158,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="container max-w-4xl py-8">
+    <div className="container max-w-4xl py-6 sm:py-8">
       {/* Header */}
       <Card className="mb-8">
         <CardContent className="flex flex-col items-center gap-4 py-8 sm:flex-row sm:items-center">
@@ -167,7 +167,7 @@ export default function ProfilePage() {
           </Avatar>
           <div className="text-center sm:text-left">
             <h1 className="text-2xl font-bold">{profile?.name ?? user?.name}</h1>
-            <p className="text-muted-foreground">{user?.email}</p>
+            <p className="break-all text-muted-foreground">{user?.email}</p>
             <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
               {activeRoleLabels.length > 0 ? (
                 activeRoleLabels.map((label) => (
@@ -194,7 +194,7 @@ export default function ProfilePage() {
         activated independently after admin approval.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {APPLICABLE_ROLES.map((role) => {
           const active = roles.includes(role.team);
           const latest = applications?.find((a) => a.role === role.team);

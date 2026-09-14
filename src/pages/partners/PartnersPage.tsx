@@ -30,15 +30,16 @@ export default function PartnersPage() {
   };
 
   return (
-    <div className="container py-8">
+    <div className="page-shell">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Partner Companies</h1>
+        <h1 className="page-heading">Partner Companies</h1>
         <p className="text-muted-foreground">
           Approved movers, cleaning companies and interior design teams.
         </p>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="-mx-4 mb-6 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <div className="flex min-w-max gap-2">
         <Button
           size="sm"
           variant={!category ? "default" : "outline"}
@@ -56,6 +57,7 @@ export default function PartnersPage() {
             {item.label}
           </Button>
         ))}
+        </div>
       </div>
 
       {isLoading ? (

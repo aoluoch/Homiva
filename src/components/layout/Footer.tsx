@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 
 export function Footer() {
   return (
-    <footer className="mt-16 border-t bg-secondary/40">
-      <div className="container grid gap-8 py-12 sm:grid-cols-2 lg:grid-cols-5">
+    <footer className="mt-10 border-t bg-secondary/40 sm:mt-16">
+      <div className="container grid gap-8 py-10 sm:grid-cols-2 sm:py-12 lg:grid-cols-5">
         <div className="space-y-3">
           <Link
             to="/"

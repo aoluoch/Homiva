@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LoadMoreButton } from "@/components/ui/load-more-button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollableTabs } from "@/components/ui/scrollable-tabs";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { PropertyGridSkeleton } from "@/components/property/PropertyCardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
@@ -70,16 +71,16 @@ export default function PropertiesPage() {
   };
 
   return (
-    <div className="container py-8">
+    <div className="page-shell">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">{titles[type]}</h1>
+        <h1 className="page-heading">{titles[type]}</h1>
         <p className="text-muted-foreground">
           Browse verified listings across Kenya
         </p>
       </div>
 
       <Tabs value={type} onValueChange={(v) => update("type", v)}>
-        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+        <ScrollableTabs>
           <TabsList className="mb-4 h-auto min-w-max justify-start gap-1">
             <TabsTrigger value="all" className="h-9">
               All
@@ -94,11 +95,11 @@ export default function PropertiesPage() {
               Airbnb
             </TabsTrigger>
           </TabsList>
-        </div>
+        </ScrollableTabs>
       </Tabs>
 
       {/* Filters */}
-      <div className="mb-8 grid gap-3 rounded-xl border bg-card p-4 shadow-sm md:grid-cols-[1fr_repeat(4,minmax(0,160px))_auto]">
+      <div className="mb-8 grid gap-3 rounded-xl border bg-card p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,160px))_auto]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -180,8 +181,8 @@ export default function PropertiesPage() {
         <>
           <p className="mb-4 text-sm text-muted-foreground">
             Showing {properties.length}
-            {total > properties.length ? ` of ${total}` : ""} propert
-            {total === 1 ? "y" : "ies"}
+            {total > properties.length ? ` of ${total}` : ""}{" "}
+            {total === 1 ? "property" : "properties"}
           </p>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {properties.map((p) => (

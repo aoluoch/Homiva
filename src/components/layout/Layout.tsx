@@ -8,10 +8,10 @@ export function Layout() {
   useIdleLogout();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen min-w-0 flex-col">
       <ScrollToTop />
       <Navbar />
-      <main className="flex-1">
+      <main className="min-w-0 flex-1">
         <Outlet />
       </main>
       <Footer />

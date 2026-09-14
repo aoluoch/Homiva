@@ -79,10 +79,10 @@ export default function HomePage() {
   return (
     <div className="bg-background">
       <section className="home-hero border-b">
-        <div className="container grid gap-10 py-12 lg:grid-cols-[minmax(0,1fr)_460px] lg:py-20">
-          <div className="flex flex-col justify-center">
-            <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-sm font-medium text-muted-foreground shadow-sm">
-              <MapPin className="h-4 w-4 text-primary" />
+        <div className="container grid gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)] lg:gap-10 lg:py-20">
+          <div className="flex min-w-0 flex-col justify-center">
+            <div className="mb-5 inline-flex w-fit max-w-full items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm sm:text-sm">
+              <MapPin className="h-4 w-4 shrink-0 text-primary" />
               Built around Kenyan homes, stays, services and shops
             </div>
             <h1 className="max-w-3xl">
@@ -90,15 +90,15 @@ export default function HomePage() {
               <img
                 src="/homiva_logo.jpg"
                 alt=""
-                className="h-24 w-full max-w-md rounded-md border bg-white object-contain px-4 shadow-sm md:h-32"
+                className="h-16 w-full max-w-xs rounded-md border bg-white object-contain px-3 shadow-sm sm:h-24 sm:max-w-md sm:px-4 md:h-32"
               />
             </h1>
-            <p className="mt-5 max-w-2xl text-xl leading-8 text-muted-foreground">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-xl sm:leading-8">
               A calmer way to find a place, keep it running, book the stay,
               message the right person and buy what belongs in the home.
             </p>
 
-            <div className="mt-8 grid gap-3 rounded-md border bg-card/95 p-3 shadow-sm md:grid-cols-[150px_1fr_180px_auto]">
+            <div className="mt-8 grid gap-3 rounded-md border bg-card/95 p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-[150px_minmax(0,1fr)_180px_auto]">
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger aria-label="Property type">
                   <SelectValue placeholder="Type" />
@@ -131,24 +131,24 @@ export default function HomePage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button onClick={runSearch} className="w-full md:w-auto">
+              <Button onClick={runSearch} className="w-full sm:col-span-2 lg:col-span-1 lg:w-auto">
                 <Search className="h-4 w-4" /> Search
               </Button>
             </div>
           </div>
 
-          <div className="home-market-board">
-            <div className="flex items-start justify-between gap-5 border-b p-5">
-              <div>
+          <div className="home-market-board min-w-0">
+            <div className="flex items-start justify-between gap-3 border-b p-4 sm:gap-5 sm:p-5">
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-muted-foreground">
                   Today on the board
                 </p>
-                <p className="mt-1 text-3xl font-black">Home work, sorted.</p>
+                <p className="mt-1 text-2xl font-black sm:text-3xl">Home work, sorted.</p>
               </div>
               <img
                 src="/homiva_logo.jpg"
                 alt=""
-                className="h-16 w-32 rounded-md border bg-white object-contain px-2"
+                className="hidden h-16 w-32 shrink-0 rounded-md border bg-white object-contain px-2 sm:block"
               />
             </div>
             <div className="grid gap-3 p-5">
@@ -166,7 +166,7 @@ export default function HomePage() {
       </section>
 
       <section className="container py-12">
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {journeyLinks.map((item, index) => (
             <JourneyCard key={item.to} {...item} active={index === 0} />
           ))}
@@ -179,7 +179,7 @@ export default function HomePage() {
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">
               Fresh across Kenya
             </p>
-            <h2 className="mt-2 text-3xl font-black">Latest properties</h2>
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">Latest properties</h2>
           </div>
           <Button asChild variant="outline">
             <Link to="/properties">
@@ -205,12 +205,12 @@ export default function HomePage() {
       </section>
 
       <section className="mt-8 border-y bg-secondary/50">
-        <div className="container grid gap-8 py-12 md:grid-cols-[0.9fr_1.1fr]">
+        <div className="container grid gap-8 py-10 sm:py-12 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">
               Why it feels different
             </p>
-            <h2 className="mt-2 text-3xl font-black">
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">
               One account follows the whole home journey.
             </h2>
           </div>
@@ -254,7 +254,7 @@ function JourneyCard({
     <Link
       to={to}
       className={cn(
-        "group flex min-h-[190px] flex-col justify-between rounded-md border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md",
+        "group flex min-h-[160px] flex-col justify-between rounded-md border bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:min-h-[190px] sm:p-5",
         active && "bg-primary text-primary-foreground",
       )}
     >
