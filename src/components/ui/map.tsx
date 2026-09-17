@@ -89,6 +89,21 @@ function getViewport(map: MapLibreGL.Map): MapViewport {
   };
 }
 
+function resolveMapStyle(
+  theme: Theme,
+  styles?: { light?: MapStyle; dark?: MapStyle },
+): MapStyle {
+  return theme === "dark"
+    ? styles?.dark ?? defaultStyles.dark
+    : styles?.light ?? defaultStyles.light;
+}
+
+function sameMapStyle(a: MapStyle | null, b: MapStyle): boolean {
+  if (a === b) return true;
+  if (!a || typeof a === "string" || typeof b === "string") return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 type MapProps = {
   children?: React.ReactNode;
   className?: string;
@@ -113,6 +128,7 @@ export const Map = React.forwardRef<MapLibreGL.Map, MapProps>(function Map(
   ref,
 ) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const appliedStyleRef = React.useRef<MapStyle | null>(null);
   const [mapInstance, setMapInstance] = React.useState<MapLibreGL.Map | null>(
     null,
   );
@@ -127,10 +143,8 @@ export const Map = React.forwardRef<MapLibreGL.Map, MapProps>(function Map(
 
   React.useEffect(() => {
     if (!containerRef.current) return;
-    const initialStyle =
-      resolvedTheme === "dark"
-        ? styles?.dark ?? defaultStyles.dark
-        : styles?.light ?? defaultStyles.light;
+    const initialStyle = resolveMapStyle(resolvedTheme, styles);
+    appliedStyleRef.current = initialStyle;
 
     const map = new MapLibreGL.Map({
       container: containerRef.current,
@@ -141,17 +155,22 @@ export const Map = React.forwardRef<MapLibreGL.Map, MapProps>(function Map(
       ...viewport,
     });
 
-    const handleLoad = () => setIsLoaded(true);
+    const handleReady = () => setIsLoaded(true);
     const handleMove = () => onViewportChangeRef.current?.(getViewport(map));
 
-    map.on("load", handleLoad);
+    // `load` can be skipped if the style is replaced before it fires; `idle`
+    // still runs after tiles are ready, which is what dismisses the overlay.
+    map.on("load", handleReady);
+    map.on("idle", handleReady);
     map.on("move", handleMove);
     setMapInstance(map);
 
     return () => {
-      map.off("load", handleLoad);
+      map.off("load", handleReady);
+      map.off("idle", handleReady);
       map.off("move", handleMove);
       map.remove();
+      appliedStyleRef.current = null;
       setIsLoaded(false);
       setMapInstance(null);
     };
@@ -161,12 +180,31 @@ export const Map = React.forwardRef<MapLibreGL.Map, MapProps>(function Map(
 
   React.useEffect(() => {
     if (!mapInstance) return;
-    const nextStyle =
-      resolvedTheme === "dark"
-        ? styles?.dark ?? defaultStyles.dark
-        : styles?.light ?? defaultStyles.light;
+    const nextStyle = resolveMapStyle(resolvedTheme, styles);
+    if (sameMapStyle(appliedStyleRef.current, nextStyle)) return;
+    appliedStyleRef.current = nextStyle;
+    setIsLoaded(false);
     mapInstance.setStyle(nextStyle);
   }, [mapInstance, resolvedTheme, styles?.dark, styles?.light]);
+
+  React.useEffect(() => {
+    if (!mapInstance || !containerRef.current) return;
+    const container = containerRef.current;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (container.clientWidth > 0 && container.clientHeight > 0) {
+          mapInstance.resize();
+        }
+      });
+    });
+    observer.observe(container);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [mapInstance]);
 
   React.useEffect(() => {
     if (!mapInstance || !viewport) return;
