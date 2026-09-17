@@ -175,9 +175,9 @@ export function PropertyLocationPicker({
             mapHeight,
           )}
         >
-          <Map center={[marker.lng, marker.lat]} zoom={hasPinned ? 15 : 11}>
+          <Map center={[marker.lng, marker.lat]} zoom={hasPinned ? 16 : 12}>
             <MapClickHandler onPick={commitLocation} />
-            <MapMoveTo coordinates={marker} zoom={hasPinned ? 15 : 11} />
+            <MapMoveTo coordinates={marker} zoom={hasPinned ? 16 : 12} />
             <MapControls
               showLocate
               showFullscreen
@@ -282,7 +282,7 @@ export function PropertyMapPreview({
     >
       <Map
         center={[coords.lng, coords.lat]}
-        zoom={15}
+        zoom={16}
         interactive={false}
       >
         <MapMarker longitude={coords.lng} latitude={coords.lat}>
