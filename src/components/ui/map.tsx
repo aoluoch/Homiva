@@ -157,17 +157,30 @@ export const Map = React.forwardRef<MapLibreGL.Map, MapProps>(function Map(
 
     const handleReady = () => setIsLoaded(true);
     const handleMove = () => onViewportChangeRef.current?.(getViewport(map));
+    const handleRender = () => {
+      if (map.loaded()) {
+        map.off("render", handleRender);
+        setIsLoaded(true);
+      }
+    };
 
     // `load` can be skipped if the style is replaced before it fires; `idle`
-    // still runs after tiles are ready, which is what dismisses the overlay.
+    // still runs after tiles are ready. `render` + a timeout cover production
+    // cases where resize work keeps the map from ever going idle.
     map.on("load", handleReady);
     map.on("idle", handleReady);
+    map.on("style.load", handleReady);
+    map.on("render", handleRender);
     map.on("move", handleMove);
+    const readyTimeout = window.setTimeout(handleReady, 1500);
     setMapInstance(map);
 
     return () => {
+      window.clearTimeout(readyTimeout);
       map.off("load", handleReady);
       map.off("idle", handleReady);
+      map.off("style.load", handleReady);
+      map.off("render", handleRender);
       map.off("move", handleMove);
       map.remove();
       appliedStyleRef.current = null;
@@ -191,12 +204,18 @@ export const Map = React.forwardRef<MapLibreGL.Map, MapProps>(function Map(
     if (!mapInstance || !containerRef.current) return;
     const container = containerRef.current;
     let frame = 0;
+    let lastWidth = 0;
+    let lastHeight = 0;
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (container.clientWidth > 0 && container.clientHeight > 0) {
-          mapInstance.resize();
-        }
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        if (width === lastWidth && height === lastHeight) return;
+        if (width <= 0 || height <= 0) return;
+        lastWidth = width;
+        lastHeight = height;
+        mapInstance.resize();
       });
     });
     observer.observe(container);
